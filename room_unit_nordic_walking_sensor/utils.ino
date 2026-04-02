@@ -69,13 +69,10 @@ void playMelody(MelodyType type) {
 // Hardware Cleanup
 // ============================================================
 
-void disable_ble() {
-  esp_bluedroid_disable();
-  esp_bluedroid_deinit();
-  esp_bt_controller_deinit();
-}
-
 void disableUnusedPeripherals() {
+  //Disable BLE
+  btStop();
+
   int unusedPins[] = {1, 21, 6, 7, 8, 5, 40};
   for (int p : unusedPins) {
     pinMode(p, INPUT_PULLDOWN);

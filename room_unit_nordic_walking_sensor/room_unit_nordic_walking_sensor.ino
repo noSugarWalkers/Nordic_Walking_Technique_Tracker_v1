@@ -27,8 +27,7 @@
 #include <esp_arduino_version.h>
 #include <esp_wifi.h>
 #define BOSCH_APP30_SHUTTLE_BHI260_FW
-#include "esp_bt.h"
-#include "esp_bt_main.h"
+#include <BLEDevice.h>
 #include <BoschFirmware.h>
 #include <GaugeBQ27220.hpp>
 #include <SdFat.h>
@@ -116,6 +115,7 @@ float cal_pitch_offset = 0.0f;
 void processIMU();
 void setupWifi(WiFiMode wifi);
 void setupServer();
+void setupBHI();
 void setupPPM();
 void setupSD();
 void checkHW();
@@ -129,7 +129,6 @@ float getLinAccMagSq();
 float getAndResetPeakForce();
 bool isSettingsActive();
 void playMelody(MelodyType type);
-void disable_ble();
 void disableUnusedPeripherals();
 uint8_t readPMIC(uint8_t reg);
 void writePMIC(uint8_t reg, uint8_t val);
@@ -162,18 +161,14 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  disable_ble();
   disableUnusedPeripherals();
 
-  // BHI Enable
-  pinMode(PIN_BHI_EN, OUTPUT);
-  digitalWrite(PIN_BHI_EN, HIGH);
+  //Prefs
+  loadPrefs();
 
   // Physical Buttons
   pinMode(PIN_BTN_STOP, INPUT_PULLUP);
   pinMode(PIN_BTN_PWR, INPUT_PULLUP);
-
-  loadPrefs();
 
   // Buzzer
   pinMode(BUZZER_PIN, OUTPUT);
@@ -182,28 +177,7 @@ void setup() {
   // I2C
   Wire.begin(PIN_SDA, PIN_SCL);
 
-  // BHI260AP initialization
-  bhi.setPins(PIN_BHI_RST);
-  bhi.setFirmware(bosch_app30_shuttle_bhi260_firmware_image,
-                  sizeof(bosch_app30_shuttle_bhi260_firmware_image));
-
-  if (!bhi.begin(Wire, BHI260AP_SLAVE_ADDRESS_L, PIN_SDA, PIN_SCL)) {
-    Serial.println("IMU ERROR!");
-  } else {
-    imuReady = true;
-    bhi.configure(BHY2_SENSOR_ID_RV, sensorFreq, 0);
-    bhi.configure(BHY2_SENSOR_ID_GAMERV, sensorFreq, 0);
-    bhi.configure(BHY2_SENSOR_ID_LACC, sensorFreq, 0);
-
-    bhi.onResultEvent(BHY2_SENSOR_ID_RV, onRotationVector);
-    bhi.onResultEvent(BHY2_SENSOR_ID_GAMERV, onRotationVector);
-    bhi.onResultEvent(BHY2_SENSOR_ID_LACC, onLinearAcc);
-  }
-
-  // PMIC configuration
-  uint8_t reg02 = readPMIC(0x02);
-  writePMIC(0x02, reg02 | 0x40);
-
+  setupBHI();
   setupPPM();
   setupSD();
   setupWifi(APP_WIFI_ON);
@@ -220,6 +194,7 @@ void setup() {
 // Main Loop
 // ============================================================
 void loop() {
+  
   checkHW();
 
   if (imuReady) {

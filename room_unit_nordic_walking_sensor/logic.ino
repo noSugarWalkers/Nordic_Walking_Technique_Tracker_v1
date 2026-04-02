@@ -34,6 +34,7 @@ unsigned long autoGestureStartMs = 0;
  * @brief Main IMU processing loop for step detection
  */
 void processIMU() {
+
   float acc = getLinAccMagSq() * gFactor;
   float pitch = getPitch();
 
@@ -173,8 +174,8 @@ void commitStep(float pushMs, float swingMs) {
 
   // log data to file
   if (sdAvailable) {
-    uint32_t elapsed = (millis() - training.startMs) / 1000;
-    uint8_t m = elapsed / 60;
+    uint32_t elapsed = (millis() - training.startMs) * 0.001;
+    uint8_t m = elapsed * 0.0167;
     uint8_t s = elapsed % 60;
     sprintf(buf, "%u,%.1f,%.1f,%.2f,%.2f,%.2f,%d,%d,%.1f,%02d:%02d",
             training.strikeAngleStat.cnt, strikeAngle, liftAngle, strikeFN,
@@ -190,7 +191,7 @@ bool validateStep(float sa, float la, float sf) {
   // 1) strikeAngle >= liftAngle
   if (sa >= la)
     return true;
-  // 2) strikeAngle < 35 градусів, або strikeAngle > 75.
+  // 2) strikeAngle < 35, or strikeAngle > 75.
   if (sa < ERR_SA_MIN || sa > ERR_SA_MAX)
     return true;
   // 3) liftAngle > 75 градусів.

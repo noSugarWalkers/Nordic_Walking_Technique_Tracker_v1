@@ -66,7 +66,7 @@ void setupPPM() {
   PPM.setSysPowerDownVoltage(3200);
   PPM.setChargeTargetVoltage(4208);
   PPM.setPrechargeCurr(128);
-  PPM.setChargerConstantCurr(128);
+  PPM.setChargerConstantCurr(256);
   PPM.disableCharge();
 }
 

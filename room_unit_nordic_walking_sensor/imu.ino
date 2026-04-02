@@ -19,6 +19,34 @@ float q_w = 1, q_x = 0, q_y = 0, q_z = 0; // Rotation vector quaternion
 float la_x = 0, la_y = 0, la_z = 0;       // Linear acceleration (g)
 float peakForceAccumulator = 0;          // Max force since last diag check
 
+void setupBHI(){
+  // BHI Enable
+  pinMode(PIN_BHI_EN, OUTPUT);
+  digitalWrite(PIN_BHI_EN, HIGH);
+
+  // BHI260AP initialization
+  bhi.setPins(PIN_BHI_RST);
+  bhi.setFirmware(bosch_app30_shuttle_bhi260_firmware_image,
+                  sizeof(bosch_app30_shuttle_bhi260_firmware_image));
+
+  if (!bhi.begin(Wire, BHI260AP_SLAVE_ADDRESS_L, PIN_SDA, PIN_SCL)) {
+    Serial.println("IMU ERROR!");
+  } else {
+    bhi.configure(BHY2_SENSOR_ID_RV, sensorFreq, 0);
+    bhi.configure(BHY2_SENSOR_ID_GAMERV, sensorFreq, 0);
+    bhi.configure(BHY2_SENSOR_ID_LACC, sensorFreq, 0);
+
+    bhi.onResultEvent(BHY2_SENSOR_ID_RV, onRotationVector);
+    bhi.onResultEvent(BHY2_SENSOR_ID_GAMERV, onRotationVector);
+    bhi.onResultEvent(BHY2_SENSOR_ID_LACC, onLinearAcc);
+    imuReady = true;
+  }
+
+  // PMIC configuration
+  uint8_t reg02 = readPMIC(0x02);
+  writePMIC(0x02, reg02 | 0x40);
+}
+
 /**
  * @brief Robust Pitch calculation from quaternions
  * @return float Pitch in degrees
