@@ -41,7 +41,7 @@ void scanAutoGesturesIMU(float acc, float pitch) {
     if (!gestureStrikeActive) {
       gestureStrikeActive = true;
 
-      if (pitch > 84.0f) {
+      if (pitch >= 83.0f) {
         if (appState != STATE_TRAINING_ACTIVE) {
           if (autoStartHitsCount == 0 || (now - autoGestureStartMs > 2000)) {
             autoGestureStartMs = now;
@@ -301,7 +301,7 @@ float gradeTrain(float sa, float la, float p, float s) {
 
 void startTraining() {
   playMelody(MELODY_MEASURE_START);
-  logger.begin();
+  //logger.begin();
   training.reset();
   stepPhase = PHASE_IDLE;
   appState = STATE_TRAINING_ACTIVE;
