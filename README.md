@@ -3,7 +3,9 @@
 ## 1️⃣Product
 A compact, ESP32‑S3–based device designed to analyze and improve Nordic walking technique using advanced motion sensor BH260AP.
 
-<img width="352" height="624" align = "center" alt="image" src="https://github.com/user-attachments/assets/cc1dc422-c66c-4592-ac9a-c54c7a5ab460" />
+
+<h1 align = "center"><img width="352" height="624" alt="image" src="https://github.com/user-attachments/assets/cc1dc422-c66c-4592-ac9a-c54c7a5ab460" /></h1> 
+
 
 **🚶‍♂️ What It Does**
 The tracker measures key parameters of Nordic walking technique in real time, capturing precise motion data to help athletes, trainers, and enthusiasts better understand their movement patterns. With a built‑in intelligent sensor, the device can detect gait phases, pole‑plant timing, asymmetries, posture deviations, and other biomechanical characteristics.
