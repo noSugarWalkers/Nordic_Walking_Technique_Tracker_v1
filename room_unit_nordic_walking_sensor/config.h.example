@@ -1,0 +1,75 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// ============================================================
+// Pin Definitions (LiLyGo T-Display Bar)
+// ============================================================
+#define PIN_SDA         3
+#define PIN_SCL         2
+#define PIN_BHI_IRQ     18
+#define PIN_BHI_RST     17
+#define PIN_BHI_EN      16
+#define PIN_BTN_STOP    38
+#define PIN_BTN_PWR     0
+#define PMIC_ADDR       0x6B
+
+// BUZZER
+#define BUZZER_PIN      9 // IO9
+
+// TF Card
+#define SD_CS           11
+#define SD_MOSI         12
+#define SD_MISO         13
+#define SD_SCK          14
+
+// ============================================================
+// WiFi Station Mode (Home Network)
+// ============================================================
+#define WIFI_SSID        "YOUR_SSID"
+#define WIFI_PASSWORD    "YOUR_PASSWORD"
+
+// Fixed IP for station mode
+#define CONFIG_IP        192, 168, 1, 100
+#define CONFIG_GATEWAY   192, 168, 1, 1
+#define CONFIG_SUBNET    255, 255, 255, 0
+#define HOSTNAME         "nordic-walker"
+
+// ============================================================
+// WiFi Soft AP Mode (open network, captive portal)
+// ============================================================
+#define WIFI_AP_SSID     "NordicWalker_AP"
+#define WIFI_AP_IP       192, 168, 4, 1
+#define WIFI_AP_GATEWAY  192, 168, 4, 1
+#define WIFI_AP_SUBNET   255, 255, 255, 0
+
+// ============================================================
+// Step Detection Coefficients
+// ============================================================
+#define IMPACT_FALL_RATIO      0.3f
+#define DEFAULT_FORCE_THRESHOLD 1.500f
+
+// Step Error thresholds
+#define ERR_SA_MIN 35.0f
+#define ERR_SA_MAX 75.0f
+#define ERR_LA_MAX 75.0f
+#define ERR_SF_MIN 0.2f
+
+// Poles
+#define POLES_LENGTH_FACTOR 0.7f
+
+// Minimum plausible durations (ms)
+#define MIN_PUSH_MS         150
+#define MAX_PUSH_MS         2000
+#define MIN_SWING_MS        300
+#define MAX_SWING_MS        2000
+#define MIN_STEP_PERIOD_MS  500
+
+// ============================================================
+// Device Settings
+// ============================================================
+#define DEVICE_NAME      "Nordic Walker Tracker"
+#define FW_VERSION       "1.0.1"
+
+#define XPOWERS_CHIP_BQ25896
+
+#endif // CONFIG_H
