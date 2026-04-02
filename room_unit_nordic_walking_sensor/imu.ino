@@ -13,7 +13,7 @@ extern float forceMultiplier;
 extern uint16_t poleWeightGrams;
 extern AppState appState;
 extern bool autoTrainingEnable;
-void processIMU();
+
 
 float q_w = 1, q_x = 0, q_y = 0, q_z = 0; // Rotation vector quaternion
 float la_x = 0, la_y = 0, la_z = 0;       // Linear acceleration (g)
@@ -146,8 +146,21 @@ void onLinearAcc(uint8_t sensor_id, const uint8_t *data, uint32_t size,
     la_y = raw_y / 4096.0f;
     la_z = raw_z / 4096.0f;
     
-    if (imuReady && (appState == STATE_TRAINING_ACTIVE || autoTrainingEnable)) {
-      processIMU();
+    if (imuReady) {
+      float accSq = getLinAccMagSq();
+      float acc = accSq * gFactor;
+      float pitch = getPitch();
+
+      if (isSettingsActive()) {
+        processDiagnosticsIMU();
+      } else {
+        if (autoTrainingEnable) {
+          scanAutoGesturesIMU(acc, pitch);
+        }
+        if (appState == STATE_TRAINING_ACTIVE) {
+          processTrainingIMU(acc, pitch);
+        }
+      }
     }
   }
 }

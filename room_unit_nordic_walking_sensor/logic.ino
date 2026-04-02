@@ -29,15 +29,71 @@ int accHorizCountStep = 0; // sample count during current swing phase
 int autoStartHitsCount = 0;
 int autoStopHitsCount = 0;
 unsigned long autoGestureStartMs = 0;
+bool gestureStrikeActive = false;
 
 /**
- * @brief Main IMU processing loop for step detection
+ * @brief Scans for automatic start/stop gestures
  */
-void processIMU() {
+void scanAutoGesturesIMU(float acc, float pitch) {
+  unsigned long now = millis();
+  
+  if (acc >= forceThresholdSq) {
+    if (!gestureStrikeActive) {
+      gestureStrikeActive = true;
+      
+      if (pitch > 85.0f) {
+        if (appState != STATE_TRAINING_ACTIVE) {
+          if (autoStartHitsCount == 0 || (now - autoGestureStartMs > 2000)) {
+            autoGestureStartMs = now;
+            autoStartHitsCount = 1;
+          } else {
+            autoStartHitsCount++;
+          }
+          autoStopHitsCount = 0;
+          
+          if (autoStartHitsCount >= 2) {
+            startTraining();
+            autoStartHitsCount = 0;
+            autoStopHitsCount = 0;
+          }
+        } else {
+          if (autoStopHitsCount == 0 || (now - autoGestureStartMs > 3000)) {
+            autoGestureStartMs = now;
+            autoStopHitsCount = 1;
+          } else {
+            autoStopHitsCount++;
+          }
+          autoStartHitsCount = 0;
+          
+          if (autoStopHitsCount >= 3) {
+            stopTraining();
+            autoStartHitsCount = 0;
+            autoStopHitsCount = 0;
+          }
+        }
+      } else {
+        autoStartHitsCount = 0;
+        autoStopHitsCount = 0;
+      }
+    }
+  } else if (acc < forceThresholdSq * 0.5f) { 
+    // Hysteresis to reset strike active flag
+    gestureStrikeActive = false;
+  }
+}
 
-  float acc = getLinAccMagSq() * gFactor;
-  float pitch = getPitch();
+/**
+ * @brief Processes IMU data for diagnostics (Settings page)
+ */
+void processDiagnosticsIMU() {
+    // getLinAccMagSq() already updates peakForceAccumulator when called in onLinearAcc.
+    // This is a placeholder for future diagnostic processing.
+}
 
+/**
+ * @brief Main IMU processing loop for step detection during active training
+ */
+void processTrainingIMU(float acc, float pitch) {
   unsigned long now = millis();
 
   switch (stepPhase) {
@@ -63,44 +119,6 @@ void processIMU() {
       bool isStrongImpact = (peakImpactAcc >= (IMPACT_MIN_PEAK_G * IMPACT_MIN_PEAK_G)) && (pushMs >= MIN_IMPACT_MS);
       
       if ((pushMs >= MIN_PUSH_MS || isStrongImpact) && pushMs <= MAX_PUSH_MS) {
-        // ... (Gesture Detection logic stays original)
-        // Gesture Detection
-        if (autoTrainingEnable && !isSettingsActive()) {
-          if (strikeAngle > 80.0f) {
-            if (appState != STATE_TRAINING_ACTIVE) {
-              if (autoStartHitsCount == 0 ||
-                  (now - autoGestureStartMs > 2000)) {
-                autoGestureStartMs = now;
-                autoStartHitsCount = 1;
-              } else {
-                autoStartHitsCount++;
-              }
-              autoStopHitsCount = 0;
-              if (autoStartHitsCount >= 2) {
-                startTraining();
-                autoStartHitsCount = 0;
-                autoStopHitsCount = 0;
-              }
-            } else {
-              if (autoStopHitsCount == 0 || (now - autoGestureStartMs > 3000)) {
-                autoGestureStartMs = now;
-                autoStopHitsCount = 1;
-              } else {
-                autoStopHitsCount++;
-              }
-              autoStartHitsCount = 0;
-              if (autoStopHitsCount >= 3) {
-                stopTraining();
-                autoStartHitsCount = 0;
-                autoStopHitsCount = 0;
-              }
-            }
-          } else if (strikeAngle <= 75.0f) {
-            autoStartHitsCount = 0;
-            autoStopHitsCount = 0;
-          }
-        }
-
         stepPhase = PHASE_RELEASE;
         t_release = now;
         peakLiftAcc = 0;

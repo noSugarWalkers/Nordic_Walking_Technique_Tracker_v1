@@ -112,7 +112,9 @@ float cal_pitch_offset = 0.0f;
 // ============================================================
 // Forward Declarations
 // ============================================================
-void processIMU();
+void scanAutoGesturesIMU(float acc, float pitch);
+void processDiagnosticsIMU();
+void processTrainingIMU(float acc, float pitch);
 void setupWifi(WiFiMode wifi);
 void setupServer();
 void setupBHI();
