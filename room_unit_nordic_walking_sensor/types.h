@@ -15,18 +15,9 @@ enum AppState {
   STATE_TRAINING_RESULTS
 };
 
-enum StepPhase { 
-  PHASE_IDLE, 
-  PHASE_IMPACT, 
-  PHASE_RELEASE 
-};
+enum StepPhase { PHASE_IDLE, PHASE_IMPACT, PHASE_PUSH, PHASE_RELEASE };
 
-enum WiFiMode { 
-  APP_WIFI_STA,
-  APP_WIFI_STA_AP,
-  APP_WIFI_AP,
-  APP_WIFI_OFF 
-};
+enum WiFiMode { APP_WIFI_STA, APP_WIFI_STA_AP, APP_WIFI_AP, APP_WIFI_OFF };
 
 enum MelodyType {
   MELODY_START,
@@ -55,8 +46,10 @@ struct Stat {
   }
 
   void add(float v) {
-    if (v < minV) minV = v;
-    if (v > maxV) maxV = v;
+    if (v < minV)
+      minV = v;
+    if (v > maxV)
+      maxV = v;
     sum += v;
     cnt++;
   }

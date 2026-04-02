@@ -100,7 +100,7 @@ void checkHW() {
   }
 }
 
-void checkButtons(){
+void checkButtons() {
 
   // --- Physical Button: STOP/BACK (IO38) ---
   bool stopDown = (digitalRead(PIN_BTN_STOP) == LOW);
@@ -109,7 +109,7 @@ void checkButtons(){
     btnStopWasPressed = true;
   } else if (!stopDown && btnStopWasPressed) {
     btnStopWasPressed = false;
-    //Short press
+    // Short press
     if (millis() - btnStopPressStart < 4000) {
       if (appState == STATE_TRAINING_ACTIVE)
         stopTraining();
@@ -118,17 +118,17 @@ void checkButtons(){
     }
   }
 
-   //Long press
+  // Long press
   if (stopDown && btnStopWasPressed) {
     if (millis() - btnStopPressStart > 4000) {
       playMelody(MELODY_AP);
-      if(wifiConnected){
+      if (wifiConnected) {
         setupWifi(APP_WIFI_OFF);
-      }else{
+      } else {
         setupWifi(APP_WIFI_STA_AP);
         playMelody(MELODY_READY);
       }
-      //Pause for user reaction
+      // Pause for user reaction
       delay(2000);
     }
   }

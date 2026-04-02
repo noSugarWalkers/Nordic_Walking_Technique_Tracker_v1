@@ -58,9 +58,7 @@ bool btnPwrWasPressed = false;
 SensorBHI260AP bhi;
 bool imuReady = false;
 unsigned long lastSettingsActivityMs = 0;
-bool isSettingsActive() {
-  return (millis() - lastSettingsActivityMs < 5000);
-}
+bool isSettingsActive() { return (millis() - lastSettingsActivityMs < 5000); }
 SPIClass spiSD(HSPI);
 SdFat sd;
 bool sdAvailable = false;
@@ -136,8 +134,10 @@ uint8_t readPMIC(uint8_t reg);
 void writePMIC(uint8_t reg, uint8_t val);
 int getBatteryPercent();
 float getBatteryVoltage();
-void onRotationVector(uint8_t sensor_id, const uint8_t *data, uint32_t size, uint64_t *timestamp, void *user_data);
-void onLinearAcc(uint8_t sensor_id, const uint8_t *data, uint32_t size, uint64_t *timestamp, void *user_data);
+void onRotationVector(uint8_t sensor_id, const uint8_t *data, uint32_t size,
+                      uint64_t *timestamp, void *user_data);
+void onLinearAcc(uint8_t sensor_id, const uint8_t *data, uint32_t size,
+                 uint64_t *timestamp, void *user_data);
 
 // Handlers (web.ino)
 void handleRoot();
@@ -165,7 +165,7 @@ void setup() {
 
   disableUnusedPeripherals();
 
-  //Prefs
+  // Prefs
   loadPrefs();
 
   // Physical Buttons
@@ -183,7 +183,7 @@ void setup() {
   setupPPM();
   setupSD();
 
-  //Start in STA mode
+  // Start in STA mode
   setupWifi(APP_WIFI_STA);
 
   if (wifiMode != APP_WIFI_OFF) {
@@ -218,6 +218,8 @@ void loop() {
 
   checkButtons();
 
-  if (dnsStarted) dnsServer.processNextRequest();
-  if (wifiConnected) server.handleClient();
+  if (dnsStarted)
+    dnsServer.processNextRequest();
+  if (wifiConnected)
+    server.handleClient();
 }

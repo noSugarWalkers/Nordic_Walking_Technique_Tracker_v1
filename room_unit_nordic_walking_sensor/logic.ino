@@ -36,12 +36,12 @@ bool gestureStrikeActive = false;
  */
 void scanAutoGesturesIMU(float acc, float pitch) {
   unsigned long now = millis();
-  
+
   if (acc >= forceThresholdSq) {
     if (!gestureStrikeActive) {
       gestureStrikeActive = true;
-      
-      if (pitch > 85.0f) {
+
+      if (pitch > 84.0f) {
         if (appState != STATE_TRAINING_ACTIVE) {
           if (autoStartHitsCount == 0 || (now - autoGestureStartMs > 2000)) {
             autoGestureStartMs = now;
@@ -50,7 +50,7 @@ void scanAutoGesturesIMU(float acc, float pitch) {
             autoStartHitsCount++;
           }
           autoStopHitsCount = 0;
-          
+
           if (autoStartHitsCount >= 2) {
             startTraining();
             autoStartHitsCount = 0;
@@ -64,7 +64,7 @@ void scanAutoGesturesIMU(float acc, float pitch) {
             autoStopHitsCount++;
           }
           autoStartHitsCount = 0;
-          
+
           if (autoStopHitsCount >= 3) {
             stopTraining();
             autoStartHitsCount = 0;
@@ -76,7 +76,7 @@ void scanAutoGesturesIMU(float acc, float pitch) {
         autoStopHitsCount = 0;
       }
     }
-  } else if (acc < forceThresholdSq * 0.5f) { 
+  } else if (acc < forceThresholdSq * 0.5f) {
     // Hysteresis to reset strike active flag
     gestureStrikeActive = false;
   }
@@ -86,20 +86,27 @@ void scanAutoGesturesIMU(float acc, float pitch) {
  * @brief Processes IMU data for diagnostics (Settings page)
  */
 void processDiagnosticsIMU() {
-    // getLinAccMagSq() already updates peakForceAccumulator when called in onLinearAcc.
-    // This is a placeholder for future diagnostic processing.
+  // getLinAccMagSq() already updates peakForceAccumulator when called in
+  // onLinearAcc. This is a placeholder for future diagnostic processing.
 }
 
 /**
  * @brief Main IMU processing loop for step detection during active training
  */
 void processTrainingIMU(float acc, float pitch) {
+  // Фільтр: ігноруємо всі дані та не детектуємо кроки, якщо палиця майже
+  // вертикальна (>= 83 градусів)
+  if (pitch >= 83.0f) {
+    return;
+  }
+
   unsigned long now = millis();
 
   switch (stepPhase) {
   case PHASE_IDLE:
     if (acc >= forceThresholdSq && (now - t_impact > IMPACT_DEBOUNCE_MS)) {
       stepPhase = PHASE_IMPACT;
+      t_prev_impact = t_impact;
       t_impact = now;
       peakImpactAcc = acc;
       strikeAngle = pitch;
@@ -111,53 +118,81 @@ void processTrainingIMU(float acc, float pitch) {
       peakImpactAcc = acc;
       strikeAngle = pitch; // angle at peak force
     }
-    // Detect end of impact: acc drops well below threshold
+
+    // Detect end of impact spike: acc drops well below peak or threshold
     if (acc < forceThresholdSq * IMPACT_FALL_RATIO) {
-      unsigned long pushMs = now - t_impact;
-      
-      // Check if this was a valid "push" or at least a strong "impact spike"
-      bool isStrongImpact = (peakImpactAcc >= (IMPACT_MIN_PEAK_G * IMPACT_MIN_PEAK_G)) && (pushMs >= MIN_IMPACT_MS);
-      
-      if ((pushMs >= MIN_PUSH_MS || isStrongImpact) && pushMs <= MAX_PUSH_MS) {
+      stepPhase = PHASE_PUSH;
+    }
+
+    // Handle timeout where the stick is held down forever
+    if (now - t_impact > MAX_PUSH_MS) {
+      commitStep(MAX_PUSH_MS, MAX_SWING_MS);
+      stepPhase = PHASE_IDLE;
+    }
+    break;
+
+  case PHASE_PUSH: {
+    unsigned long pushMs = now - t_impact;
+
+    if (pushMs > MAX_PUSH_MS) {
+      commitStep(MAX_PUSH_MS, MAX_SWING_MS);
+      stepPhase = PHASE_IDLE;
+    } else if (acc > LIFT_ACC_THRESHOLD_SQ) {
+      bool isStrongImpact =
+          (peakImpactAcc >= (IMPACT_MIN_PEAK_G * IMPACT_MIN_PEAK_G)) &&
+          (pushMs >= MIN_IMPACT_MS);
+
+      if (pushMs >= MIN_PUSH_MS || isStrongImpact) {
         stepPhase = PHASE_RELEASE;
         t_release = now;
-        peakLiftAcc = 0;
+        peakLiftAcc = acc;
         liftAngle = pitch;
         accHorizSumStep = 0;
         accHorizCountStep = 0;
       } else {
-        // Too short or too long — glitch, ignore
+        // Push was way too short, noise. Reset to IDLE.
         stepPhase = PHASE_IDLE;
       }
     }
-    break;
+  } break;
 
-  case PHASE_RELEASE:
-    if (acc > peakLiftAcc) {
-      peakLiftAcc = acc;
-      liftAngle = pitch;
+  case PHASE_RELEASE: {
+    unsigned long swingMs = now - t_release;
+
+    // Limit the search for the lift-off peak to the first 100ms
+    if (swingMs < 100) {
+      if (acc > peakLiftAcc) {
+        peakLiftAcc = acc;
+        liftAngle = pitch;
+      }
     }
 
     // Accumulate horizontal acceleration during swing
     accHorizSumStep += getHorizontalAcc();
     accHorizCountStep++;
 
-    // Next impact detected → complete step
-    if (acc >= forceThresholdSq && (now - t_impact > IMPACT_DEBOUNCE_MS)) {
-      unsigned long swingMs = now - t_release;
+    if (swingMs > MAX_SWING_MS) {
+      // Timeout during swing
       unsigned long pushMs = t_release - t_impact;
-      if (swingMs >= MIN_SWING_MS && swingMs <= MAX_SWING_MS &&
-          (pushMs + swingMs) >= MIN_STEP_PERIOD_MS) {
+      commitStep((float)pushMs, (float)MAX_SWING_MS);
+      stepPhase = PHASE_IDLE;
+    }
+    // Next impact detected → complete step
+    else if (acc >= forceThresholdSq && (now - t_impact > IMPACT_DEBOUNCE_MS)) {
+      unsigned long pushMs = t_release - t_impact;
+
+      if (swingMs >= MIN_SWING_MS && (pushMs + swingMs) >= MIN_STEP_PERIOD_MS) {
         commitStep((float)pushMs, (float)swingMs);
       }
-      // Start new impact
+
+      // Start new impact immediately
       stepPhase = PHASE_IMPACT;
       t_prev_impact = t_impact;
       t_impact = now;
       peakImpactAcc = acc;
       strikeAngle = pitch;
     }
-    break;
+  } break;
   }
 }
 
@@ -165,9 +200,6 @@ void processTrainingIMU(float acc, float pitch) {
  * @brief Finalize a detected step and update statistics
  */
 void commitStep(float pushMs, float swingMs) {
-  // Filter: only count "hits" with angle <= 75 degrees
-  if (strikeAngle > 79.0f)
-    return;
 
   float strikeFN = accToKgf(sqrtf(peakImpactAcc));
   float liftFN = accToKgf(sqrtf(peakLiftAcc));
@@ -226,44 +258,45 @@ bool validateStep(float sa, float la, float sf) {
  * @brief Calculates a technique score (0-100%)
  */
 float gradeTrain(float sa, float la, float p, float s) {
-    // 1) Оцінка за кут уколу (макс 49)
-    const float sa_center = (ERR_SA_MAX + ERR_SA_MIN) / 2.0f;   // Тепер 46.5°
-    float sa_diff = fabs(sa - sa_center);
-    const float sa_max_diff = (ERR_SA_MAX - ERR_SA_MIN) / 2.0f; // 9.5°
-    float grade1 = 49.0f * (1.0f - (sa_diff / sa_max_diff));
-    if (grade1 < 0) grade1 = 0;
+  // 1) Оцінка за кут уколу (макс 49)
+  const float sa_center = (ERR_SA_MAX + ERR_SA_MIN) / 2.0f; // Тепер 46.5°
+  float sa_diff = fabs(sa - sa_center);
+  const float sa_max_diff = (ERR_SA_MAX - ERR_SA_MIN) / 2.0f; // 9.5°
+  float grade1 = 49.0f * (1.0f - (sa_diff / sa_max_diff));
+  if (grade1 < 0)
+    grade1 = 0;
 
-    // 2) Оцінка за різницю sa–la (макс 17)
-    float diff = fabs(sa - la);
-    float grade2 = 0.0f;
+  // 2) Оцінка за різницю sa–la (макс 17)
+  float diff = fabs(sa - la);
+  float grade2 = 0.0f;
 
-    if (diff >= 5 && diff <= 10) {
-        grade2 = 17.0f;
-    } else if (diff < 5) {
-        grade2 = 17.0f * (diff / 5.0f);
+  if (diff >= 5 && diff <= 10) {
+    grade2 = 17.0f;
+  } else if (diff < 5) {
+    grade2 = 17.0f * (diff / 5.0f);
+  } else {
+    float over = diff - 10.0f;
+    if (over < 10.0f) {
+      grade2 = 17.0f * (1.0f - (over / 10.0f));
     } else {
-        float over = diff - 10.0f;
-        if (over < 10.0f) {
-            grade2 = 17.0f * (1.0f - (over / 10.0f));
-        } else {
-            grade2 = 0.0f;
-        }
+      grade2 = 0.0f;
     }
+  }
 
-    // 3) Оцінка за робочий цикл (макс 34)
-    float cycle = (p / s) * 100.0f;
-    float grade3 = 0.0f;
+  // 3) Оцінка за робочий цикл (макс 34)
+  float cycle = (p / s) * 100.0f;
+  float grade3 = 0.0f;
 
-    if (cycle >= 66.0f) {
-        grade3 = 34.0f;
-    } else if (cycle >= 50.0f) {
-        grade3 = 34.0f * ((cycle - 50.0f) / 16.0f);
-    } else {
-        grade3 = 0.0f;
-    }
+  if (cycle >= 66.0f) {
+    grade3 = 34.0f;
+  } else if (cycle >= 50.0f) {
+    grade3 = 34.0f * ((cycle - 50.0f) / 16.0f);
+  } else {
+    grade3 = 0.0f;
+  }
 
-    float total = (grade1 + grade2 + grade3);
-    return total;
+  float total = (grade1 + grade2 + grade3);
+  return total;
 }
 
 void startTraining() {
