@@ -1,7 +1,7 @@
 /*
  * room_unit_nordic_walking_sensor
  * Nordic Walking Fitness Tracker
- * Hardware: LiLyGo T-Display Bar (ESP32-S3 + BHI260AP )
+ * Hardware: LiLyGo T-Display Bar (ESP32-S3 + BHI260AP + BUZZER)
  *
  * Modular structure (Arduino IDE Tabs):
  * - config.h: Pins and hardware constants
@@ -194,7 +194,7 @@ void setup() {
 // Main Loop
 // ============================================================
 void loop() {
-  
+
   checkHW();
 
   if (imuReady) {
