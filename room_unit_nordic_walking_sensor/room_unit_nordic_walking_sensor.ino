@@ -37,7 +37,7 @@
 // Core Application State
 // ============================================================
 AppState appState = STATE_MENU_MAIN;
-WiFiMode wifiMode = APP_WIFI_ON; // Default WiFi Mode
+WiFiMode wifiMode = APP_WIFI_STA; // Default WiFi Mode
 
 // Menu/UI State
 int menuSel = 0;
@@ -180,7 +180,9 @@ void setup() {
   setupBHI();
   setupPPM();
   setupSD();
-  setupWifi(APP_WIFI_ON);
+
+  //Start in STA mode
+  setupWifi(APP_WIFI_STA);
 
   if (wifiMode != APP_WIFI_OFF) {
     setupServer();
@@ -212,36 +214,8 @@ void loop() {
     }
   }
 
-  if (dnsStarted)
-    dnsServer.processNextRequest();
-  if (wifiMode != APP_WIFI_OFF)
-    server.handleClient();
+  checkButtons();
 
-  // --- Physical Button: STOP/BACK (IO38) ---
-  bool stopDown = (digitalRead(PIN_BTN_STOP) == LOW);
-  if (stopDown && !btnStopWasPressed) {
-    btnStopPressStart = millis();
-    btnStopWasPressed = true;
-    if (appState == STATE_TRAINING_ACTIVE)
-      stopTraining();
-    else
-      startTraining();
-  } else if (!stopDown && btnStopWasPressed) {
-    btnStopWasPressed = false;
-  }
-
-  // --- Physical Button: POWER (IO0) ---
-  bool pwrDown = (digitalRead(PIN_BTN_PWR) == LOW);
-  if (pwrDown && !btnPwrWasPressed) {
-    btnPwrPressStart = millis();
-    btnPwrWasPressed = true;
-  } else if (!pwrDown && btnPwrWasPressed) {
-    btnPwrWasPressed = false;
-  }
-
-  if (pwrDown && btnPwrWasPressed) {
-    if (millis() - btnPwrPressStart > 4000) {
-      powerOff();
-    }
-  }
+  if (dnsStarted) dnsServer.processNextRequest();
+  if (wifiConnected) server.handleClient();
 }

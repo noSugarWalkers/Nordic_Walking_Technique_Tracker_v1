@@ -62,6 +62,12 @@ void playMelody(MelodyType type) {
       for (int i = 0; i < 2; i++) playTone(notes[i], dur[i]);
       break;
     }
+    case MELODY_AP: {
+      int notes[] = { 988, 1319, 1760 };   // B5, E6, A6
+      int dur[]   = { 120, 120, 160 };
+      for (int i = 0; i < 3; i++) playTone(notes[i], dur[i]);
+      break;
+    }
   }
 }
 

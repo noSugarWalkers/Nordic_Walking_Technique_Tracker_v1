@@ -49,13 +49,7 @@ void setupWifi(WiFiMode wifi) {
   WiFi.disconnect(true);
   delay(100);
 
-  if (wifiMode == APP_WIFI_OFF) {
-    WiFi.mode(WIFI_OFF);
-    Serial.println("WiFi OFF");
-    return;
-  }
-
-  if (wifiMode == APP_WIFI_ON) {
+  if (wifi == APP_WIFI_STA || wifi == APP_WIFI_STA_AP) {
     WiFi.mode(WIFI_STA);
     IPAddress ip(CONFIG_IP);
     IPAddress gw(CONFIG_GATEWAY);
@@ -78,14 +72,51 @@ void setupWifi(WiFiMode wifi) {
       
       WiFi.setSleep(true);
       esp_wifi_set_ps(WIFI_PS_MAX_MODEM); 
-      WiFi.setTxPower(WIFI_POWER_8_5dBm); 
+      WiFi.setTxPower(WIFI_POWER_8_5dBm);
+      return;
     } else {
-      wifiConnected = false;
-      Serial.println("\nSTA connect failed");
-      WiFi.mode(WIFI_OFF);
-      Serial.println("WiFi OFF");
+      if(wifi == APP_WIFI_STA_AP){
+        wifiConnected = true;
+        WiFi.mode(WIFI_AP);
+        IPAddress apIP(WIFI_AP_IP);
+        IPAddress apGW(WIFI_AP_GATEWAY);
+        IPAddress apSN(WIFI_AP_SUBNET);
+        WiFi.softAPConfig(apIP, apGW, apSN);
+        WiFi.softAP(WIFI_AP_SSID); // open, no password
+        Serial.println("AP started: " + String(WIFI_AP_SSID));
+        dnsServer.start(53, "*", apIP);
+        dnsStarted = true;
+        // AP mode: reduce TX power
+        WiFi.setTxPower(WIFI_POWER_8_5dBm);
+        return;
+      }else{
+        wifiConnected = false;
+        Serial.println("\nSTA connect failed");
+        WiFi.mode(WIFI_OFF);
+        Serial.println("WiFi OFF");
+        return;
+      }
     }
+  }else if(wifi == APP_WIFI_AP){
+    wifiConnected = true;
+    WiFi.mode(WIFI_AP);
+    IPAddress apIP(WIFI_AP_IP);
+    IPAddress apGW(WIFI_AP_GATEWAY);
+    IPAddress apSN(WIFI_AP_SUBNET);
+    WiFi.softAPConfig(apIP, apGW, apSN);
+    WiFi.softAP(WIFI_AP_SSID); // open, no password
+    Serial.println("AP started: " + String(WIFI_AP_SSID));
+    dnsServer.start(53, "*", apIP);
+    dnsStarted = true;
+    // AP mode: reduce TX power
+    WiFi.setTxPower(WIFI_POWER_8_5dBm);
+    return;
+  }else if(wifi == APP_WIFI_OFF){
+    wifiConnected = false;
+    WiFi.mode(WIFI_OFF);
+    Serial.println("WiFi OFF");
   }
+  return;
 }
 
 /**

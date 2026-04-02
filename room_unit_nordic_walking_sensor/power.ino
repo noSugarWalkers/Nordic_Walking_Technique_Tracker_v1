@@ -100,9 +100,58 @@ void checkHW() {
   }
 }
 
+void checkButtons(){
+
+  // --- Physical Button: STOP/BACK (IO38) ---
+  bool stopDown = (digitalRead(PIN_BTN_STOP) == LOW);
+  if (stopDown && !btnStopWasPressed) {
+    btnStopPressStart = millis();
+    btnStopWasPressed = true;
+  } else if (!stopDown && btnStopWasPressed) {
+    btnStopWasPressed = false;
+    //Short press
+    if (millis() - btnStopPressStart < 4000) {
+      if (appState == STATE_TRAINING_ACTIVE)
+        stopTraining();
+      else
+        startTraining();
+    }
+  }
+
+   //Long press
+  if (stopDown && btnStopWasPressed) {
+    if (millis() - btnStopPressStart > 4000) {
+      playMelody(MELODY_AP);
+      if(wifiConnected){
+        setupWifi(APP_WIFI_OFF);
+      }else{
+        setupWifi(APP_WIFI_STA_AP);
+        playMelody(MELODY_READY);
+      }
+      //Pause for user reaction
+      delay(2000);
+    }
+  }
+
+  // --- Physical Button: POWER (IO0) ---
+  bool pwrDown = (digitalRead(PIN_BTN_PWR) == LOW);
+  if (pwrDown && !btnPwrWasPressed) {
+    btnPwrPressStart = millis();
+    btnPwrWasPressed = true;
+  } else if (!pwrDown && btnPwrWasPressed) {
+    btnPwrWasPressed = false;
+  }
+
+  if (pwrDown && btnPwrWasPressed) {
+    if (millis() - btnPwrPressStart > 4000) {
+      powerOff();
+    }
+  }
+}
+
 float getBatteryVoltage() {
   if (!gaugeEnable)
-    return 4000;
+    return 3600;
   if (gauge.refresh())
     return gauge.getVoltage();
   return 0;

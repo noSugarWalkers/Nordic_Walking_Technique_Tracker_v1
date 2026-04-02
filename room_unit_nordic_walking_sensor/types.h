@@ -22,7 +22,9 @@ enum StepPhase {
 };
 
 enum WiFiMode { 
-  APP_WIFI_ON, 
+  APP_WIFI_STA,
+  APP_WIFI_STA_AP,
+  APP_WIFI_AP,
   APP_WIFI_OFF 
 };
 
@@ -31,7 +33,8 @@ enum MelodyType {
   MELODY_MEASURE_START,
   MELODY_MEASURE_STOP,
   MELODY_SHUTDOWN,
-  MELODY_READY
+  MELODY_READY,
+  MELODY_AP
 };
 
 // ============================================================

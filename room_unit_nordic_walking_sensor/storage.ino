@@ -89,7 +89,15 @@ void SDLogger::log(const char *line) {
 void SDLogger::close() {
   if (!sdAvailable)
     return;
-  if (file.isOpen())
-    file.close();
+  if (file.isOpen()){
+    if (file.fileSize() < 200) {
+      file.close();
+      sd.remove(fname.c_str());
+      Serial.println("Removed empty file");
+    } else {
+      file.close();
+      Serial.println("File not empty");
+    }
+  }
   delay(50);
 }
