@@ -30,6 +30,8 @@ int autoStartHitsCount = 0;
 int autoStopHitsCount = 0;
 unsigned long autoGestureStartMs = 0;
 bool gestureStrikeActive = false;
+unsigned long t_push_start = 0;
+unsigned long last_push_duration = 0;
 
 /**
  * @brief Scans for automatic start/stop gestures
@@ -119,32 +121,46 @@ void processTrainingIMU(float acc, float pitch) {
       strikeAngle = pitch; // angle at peak force
     }
 
-    // Detect end of impact spike: acc drops well below peak or threshold
+    // Перехід у PHASE_PUSH -> Це кінець Swing і початок Push
     if (acc < forceThresholdSq * IMPACT_FALL_RATIO) {
+      if (t_release != 0) {
+        unsigned long swingMs = now - t_release;
+        
+        if (swingMs >= MIN_SWING_MS && (last_push_duration + swingMs) >= MIN_STEP_PERIOD_MS) {
+          commitStep((float)last_push_duration, (float)swingMs);
+        }
+      }
+      
       stepPhase = PHASE_PUSH;
+      t_push_start = now;
     }
 
     // Handle timeout where the stick is held down forever
     if (now - t_impact > MAX_PUSH_MS) {
       commitStep(MAX_PUSH_MS, MAX_SWING_MS);
       stepPhase = PHASE_IDLE;
+      t_release = 0;
     }
     break;
 
   case PHASE_PUSH: {
-    unsigned long pushMs = now - t_impact;
+    unsigned long currentPushMs = now - t_push_start;
 
-    if (pushMs > MAX_PUSH_MS) {
+    if (currentPushMs > MAX_PUSH_MS) {
       commitStep(MAX_PUSH_MS, MAX_SWING_MS);
       stepPhase = PHASE_IDLE;
+      t_release = 0;
     } else if (acc > LIFT_ACC_THRESHOLD_SQ) {
+      unsigned long total_ground_time = now - t_impact;
       bool isStrongImpact =
           (peakImpactAcc >= (IMPACT_MIN_PEAK_G * IMPACT_MIN_PEAK_G)) &&
-          (pushMs >= MIN_IMPACT_MS);
+          (total_ground_time >= MIN_IMPACT_MS);
 
-      if (pushMs >= MIN_PUSH_MS || isStrongImpact) {
+      if (currentPushMs >= MIN_PUSH_MS || isStrongImpact) {
         stepPhase = PHASE_RELEASE;
         t_release = now;
+        last_push_duration = currentPushMs;
+        
         peakLiftAcc = acc;
         liftAngle = pitch;
         accHorizSumStep = 0;
@@ -152,6 +168,7 @@ void processTrainingIMU(float acc, float pitch) {
       } else {
         // Push was way too short, noise. Reset to IDLE.
         stepPhase = PHASE_IDLE;
+        t_release = 0;
       }
     }
   } break;
@@ -173,19 +190,12 @@ void processTrainingIMU(float acc, float pitch) {
 
     if (swingMs > MAX_SWING_MS) {
       // Timeout during swing
-      unsigned long pushMs = t_release - t_impact;
-      commitStep((float)pushMs, (float)MAX_SWING_MS);
+      commitStep((float)last_push_duration, (float)MAX_SWING_MS);
       stepPhase = PHASE_IDLE;
+      t_release = 0;
     }
-    // Next impact detected → complete step
-    else if (acc >= forceThresholdSq && (now - t_impact > IMPACT_DEBOUNCE_MS)) {
-      unsigned long pushMs = t_release - t_impact;
-
-      if (swingMs >= MIN_SWING_MS && (pushMs + swingMs) >= MIN_STEP_PERIOD_MS) {
-        commitStep((float)pushMs, (float)swingMs);
-      }
-
-      // Start new impact immediately
+    // Next impact detected → move to IMPACT, but swing doesn't end until PUSH
+    else if (acc >= forceThresholdSq && (now - t_push_start > IMPACT_DEBOUNCE_MS)) {
       stepPhase = PHASE_IMPACT;
       t_prev_impact = t_impact;
       t_impact = now;
@@ -307,6 +317,8 @@ void startTraining() {
   appState = STATE_TRAINING_ACTIVE;
   autoStartHitsCount = 0;
   autoStopHitsCount = 0;
+  t_release = 0;
+  t_push_start = 0;
 }
 
 void stopTraining() {
