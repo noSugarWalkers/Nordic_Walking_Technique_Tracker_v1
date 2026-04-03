@@ -554,7 +554,8 @@ String buildSettingsHTML() {
 
   // Секція 2: Параметри палиць
   h += F("<div class='card'><h2>Параметри обладнання</h2>");
-  h += "<div class='field'><span>Довжина палиці (см)</span><input type='number' id='poleLength' value='" + String(poleLength) + "'></div>";
+  h += "<div class='field' style='margin-bottom:8px'><span>Довжина палиці (см)</span><input type='number' id='poleLength' value='" + String(poleLength) + "'></div>";
+  h += F("<div style='display:flex;margin-bottom:16px;'><button class='btn btn-sec' style='width:100%;' onclick='openPoleAdviseModal()'>Підібрати</button></div>");
   h += "<div class='field'><span>Вага палиці (г)</span><input type='number' id='poleWeightGrams' value='" + String(poleWeightGrams) + "'></div>";
   h += "<div class='field'><span>Зріст користувача (см)</span><input type='number' id='userHeight' value='" + String(userHeight) + "'></div>";
   h += "<div class='field'><span>Частота сенсора (Гц)</span><input type='number' id='sensorFreq' value='" + String(sensorFreq) + "'></div>";
@@ -590,6 +591,15 @@ String buildSettingsHTML() {
          "<div id='forceStatus' style='display:none;margin-top:16px;text-align:center'><div style='color:#38bdf8;font-weight:bold'>Вимірювання...</div></div>"
          "<button class='btn btn-sec' style='width:100%;margin-top:12px' onclick='document.getElementById(\"forceModal\").close()'>Скасувати</button></dialog>");
 
+  // Модалка підбору довжини палиці
+  h += F("<dialog id='poleAdviseModal'><span class='diag-title'>Підбір довжини палиці</span>"
+         "<span class='diag-msg'>Візьміть палицю налаштуйте її на довжину на - <b id='poleAdviseCalc' style='color:#38bdf8;'></b> см.<br><br>Станьте на рівну поверхню, відведіть палицю назад і опустіть руку вздовж стегна.</span>"
+         "<div style='text-align:center;margin:20px 0;'>"
+         "<div id='advisePitch' style='font-size:48px;font-weight:bold;transition:color 0.3s;'>--&deg;</div>"
+         "<div id='adviseHint' style='font-size:16px;min-height:24px;margin-top:8px;'></div>"
+         "</div>"
+         "<button class='btn btn-primary' style='width:100%;' onclick='location.href=\"/\"'>Ок</button></dialog>");
+
   h += F("<script>"
          "function doSave(){"
          "  const d = {"
@@ -615,6 +625,11 @@ String buildSettingsHTML() {
          "  });"
          "}"
          "function openForceModal(){ document.getElementById('forceModal').showModal(); }"
+         "function openPoleAdviseModal(){"
+         "  const h = parseFloat(document.getElementById('userHeight').value) || 0;"
+         "  document.getElementById('poleAdviseCalc').innerText = (h * 0.7).toFixed(1);"
+         "  document.getElementById('poleAdviseModal').showModal();"
+         "}"
          "function doCalForce(){"
          "  document.getElementById('forceStartBtn').disabled = true;"
          "  document.getElementById('forceStatus').style.display='block';"
@@ -648,6 +663,26 @@ String buildSettingsHTML() {
          "    document.getElementById('dTemp').innerText = j.batTemp + ' °C';"
          "    document.getElementById('dVbus').innerText = j.vbus + ' mV';"
          "    document.getElementById('dChg').innerText = j.chgStatus;"
+         "    "
+         "    const p = j.pitch;"
+         "    const ap = document.getElementById('advisePitch');"
+         "    const ah = document.getElementById('adviseHint');"
+         "    if(ap && ah) {"
+         "      ap.innerHTML = p.toFixed(1) + '&deg;';"
+         "      if(p >= 39 && p <= 42) {"
+         "        ap.style.color = '#10b981';"
+         "        ah.innerText = 'Ідеально';"
+         "        ah.style.color = '#94a3b8';"
+         "      } else if(p < 37) {"
+         "        ap.style.color = '#ef4444';"
+         "        ah.innerText = 'Зменшіть довжину палиці';"
+         "        ah.style.color = '#ef4444';"
+         "      } else {"
+         "        ap.style.color = '#ef4444';"
+         "        ah.innerText = 'Збільшить довжину палиці';"
+         "        ah.style.color = '#ef4444';"
+         "      }"
+         "    }"
          "  });"
          "}"
          "setInterval(updateDiag, 1000); updateDiag();"
