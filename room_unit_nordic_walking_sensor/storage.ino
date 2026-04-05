@@ -33,7 +33,7 @@ void setupSD() {
 bool SDLogger::begin() {
   if (!sdAvailable)
     return false;
-  
+
   // Find next file name
   uint16_t maxIndex = 0;
   SdFile root;
@@ -67,8 +67,8 @@ bool SDLogger::begin() {
   } else {
     file.println("Step,StrikeAngle,LiftAngle,StrikeForce(kgf),LiftForce(kgf),"
                  "AccHoriz(g),"
-                 "PushTime(ms),"
-                 "SwingTime(ms),Freq(s/m),TimeLeft");
+                 "GroundTime(ms),"
+                 "CycleTime(ms),Freq(s/m),TimeLeft");
   }
   c = 0;
   return true;
@@ -78,12 +78,12 @@ void SDLogger::log(const char *line) {
   if (file.isOpen()) {
     file.println(line);
     c++;
-    if (c > 250) {
+    if (c > 200) {
       // Flush every 200 steps to prevent data loss
       file.flush();
       c = 0;
     }
-  }else{
+  } else {
     logger.begin();
     file.println(line);
     c++;
@@ -91,7 +91,9 @@ void SDLogger::log(const char *line) {
 }
 
 void SDLogger::close() {
-  if (!sdAvailable) return;
-  if (file.isOpen()) file.close();
+  if (!sdAvailable)
+    return;
+  if (file.isOpen())
+    file.close();
   delay(50);
 }

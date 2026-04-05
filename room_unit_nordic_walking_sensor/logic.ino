@@ -30,8 +30,6 @@ int autoStartHitsCount = 0;
 int autoStopHitsCount = 0;
 unsigned long autoGestureStartMs = 0;
 bool gestureStrikeActive = false;
-unsigned long t_push_start = 0;
-unsigned long last_push_duration = 0;
 
 /**
  * @brief Scans for automatic start/stop gestures
@@ -121,18 +119,8 @@ void processTrainingIMU(float acc, float pitch) {
       strikeAngle = pitch; // angle at peak force
     }
 
-    // Перехід у PHASE_PUSH -> Це кінець Swing і початок Push
     if (acc < forceThresholdSq * IMPACT_FALL_RATIO) {
-      if (t_release != 0) {
-        unsigned long swingMs = now - t_release;
-        
-        if (swingMs >= MIN_SWING_MS && (last_push_duration + swingMs) >= MIN_STEP_PERIOD_MS) {
-          commitStep((float)last_push_duration, (float)swingMs);
-        }
-      }
-      
       stepPhase = PHASE_PUSH;
-      t_push_start = now;
     }
 
     // Handle timeout where the stick is held down forever
@@ -144,22 +132,20 @@ void processTrainingIMU(float acc, float pitch) {
     break;
 
   case PHASE_PUSH: {
-    unsigned long currentPushMs = now - t_push_start;
+    unsigned long groundTimeMs = now - t_impact;
 
-    if (currentPushMs > MAX_PUSH_MS) {
+    if (groundTimeMs > MAX_PUSH_MS) {
       commitStep(MAX_PUSH_MS, MAX_SWING_MS);
       stepPhase = PHASE_IDLE;
       t_release = 0;
-    } else if (acc > LIFT_ACC_THRESHOLD_SQ) {
-      unsigned long total_ground_time = now - t_impact;
+    } else if (acc > LIFT_ACC_THRESHOLD_SQ || getHorizontalAcc() > LIFT_HORIZ_THRESH) {
       bool isStrongImpact =
           (peakImpactAcc >= (IMPACT_MIN_PEAK_G * IMPACT_MIN_PEAK_G)) &&
-          (total_ground_time >= MIN_IMPACT_MS);
+          (groundTimeMs >= MIN_IMPACT_MS);
 
-      if (currentPushMs >= MIN_PUSH_MS || isStrongImpact) {
+      if (groundTimeMs >= MIN_PUSH_MS || isStrongImpact) {
         stepPhase = PHASE_RELEASE;
         t_release = now;
-        last_push_duration = currentPushMs;
         
         peakLiftAcc = acc;
         liftAngle = pitch;
@@ -190,12 +176,20 @@ void processTrainingIMU(float acc, float pitch) {
 
     if (swingMs > MAX_SWING_MS) {
       // Timeout during swing
-      commitStep((float)last_push_duration, (float)MAX_SWING_MS);
+      commitStep((float)(t_release - t_impact), (float)(MAX_SWING_MS + (t_release - t_impact)));
       stepPhase = PHASE_IDLE;
       t_release = 0;
     }
-    // Next impact detected → move to IMPACT, but swing doesn't end until PUSH
-    else if (acc >= forceThresholdSq && (now - t_push_start > IMPACT_DEBOUNCE_MS)) {
+    // Next impact detected → complete step
+    else if (acc >= forceThresholdSq && (now - t_release > IMPACT_DEBOUNCE_MS)) {
+      unsigned long groundTime = t_release - t_impact;
+      unsigned long cycleTime = now - t_impact;
+      
+      if (cycleTime >= MIN_STEP_PERIOD_MS) {
+        commitStep((float)groundTime, (float)cycleTime);
+      }
+
+      // Start new impact immediately
       stepPhase = PHASE_IMPACT;
       t_prev_impact = t_impact;
       t_impact = now;
@@ -209,11 +203,11 @@ void processTrainingIMU(float acc, float pitch) {
 /**
  * @brief Finalize a detected step and update statistics
  */
-void commitStep(float pushMs, float swingMs) {
+void commitStep(float groundMs, float cycleMs) {
 
   float strikeFN = accToKgf(sqrtf(peakImpactAcc));
   float liftFN = accToKgf(sqrtf(peakLiftAcc));
-  float freq = 60000.0f / (pushMs + swingMs);
+  float freq = 60000.0f / cycleMs;
 
   if (validateStep(strikeAngle, liftAngle, strikeFN)) {
     training.errors++;
@@ -223,8 +217,8 @@ void commitStep(float pushMs, float swingMs) {
   training.liftAngleStat.add(liftAngle);
   training.strikeForce.add(strikeFN);
   training.liftForce.add(liftFN);
-  training.pushTime.add(pushMs);
-  training.swingTime.add(swingMs);
+  training.groundTime.add(groundMs);
+  training.cycleTime.add(cycleMs);
   training.frequency.add(freq);
 
   float avgAccHoriz =
@@ -239,7 +233,7 @@ void commitStep(float pushMs, float swingMs) {
     uint8_t s = elapsed % 60;
     sprintf(buf, "%u,%.1f,%.1f,%.2f,%.2f,%.2f,%d,%d,%.1f,%02d:%02d",
             training.strikeAngleStat.cnt, strikeAngle, liftAngle, strikeFN,
-            liftFN, avgAccHoriz, (int)pushMs, (int)swingMs, freq, m, s);
+            liftFN, avgAccHoriz, (int)groundMs, (int)cycleMs, freq, m, s);
     logger.log(buf);
   }
 }
@@ -267,7 +261,7 @@ bool validateStep(float sa, float la, float sf) {
 /**
  * @brief Calculates a technique score (0-100%)
  */
-float gradeTrain(float sa, float la, float p, float s) {
+float gradeTrain(float sa, float la, float groundTime, float cycleTime) {
   // 1) Оцінка за кут уколу (макс 49)
   const float sa_center = (ERR_SA_MAX + ERR_SA_MIN) / 2.0f; // Тепер 46.5°
   float sa_diff = fabs(sa - sa_center);
@@ -294,7 +288,7 @@ float gradeTrain(float sa, float la, float p, float s) {
   }
 
   // 3) Оцінка за робочий цикл (макс 34)
-  float cycle = (p / s) * 100.0f;
+  float cycle = (groundTime / cycleTime) * 100.0f;
   float grade3 = 0.0f;
 
   if (cycle >= 66.0f) {
@@ -318,7 +312,6 @@ void startTraining() {
   autoStartHitsCount = 0;
   autoStopHitsCount = 0;
   t_release = 0;
-  t_push_start = 0;
 }
 
 void stopTraining() {

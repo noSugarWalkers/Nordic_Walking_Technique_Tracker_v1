@@ -62,8 +62,8 @@ struct TrainingData {
   Stat liftAngleStat;
   Stat strikeForce;     // Newtons/kgf
   Stat liftForce;       // Newtons/kgf
-  Stat pushTime;        // ms
-  Stat swingTime;       // ms
+  Stat groundTime;      // ms
+  Stat cycleTime;       // ms
   Stat frequency;       // steps/min
   Stat avgAccHorizStat; // g-units (average horizontal acc during swing phase)
   unsigned long startMs = 0;
@@ -76,8 +76,8 @@ struct TrainingData {
     liftAngleStat.reset();
     strikeForce.reset();
     liftForce.reset();
-    pushTime.reset();
-    swingTime.reset();
+    groundTime.reset();
+    cycleTime.reset();
     frequency.reset();
     avgAccHorizStat.reset();
     errors = 0;

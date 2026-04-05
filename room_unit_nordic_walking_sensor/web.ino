@@ -181,8 +181,8 @@ String buildResultsJSON() {
   j += "\"liftAngle\":{\"avg\":" + String(training.liftAngleStat.avg(), 1) + ",\"min\":" + String(training.liftAngleStat.minV, 1) + ",\"max\":" + String(training.liftAngleStat.maxV, 1) + "},";
   j += "\"strikeForce\":{\"avg\":" + String(training.strikeForce.avg(), 2) + ",\"min\":" + String(training.strikeForce.minV, 2) + ",\"max\":" + String(training.strikeForce.maxV, 2) + "},";
   j += "\"liftForce\":{\"avg\":" + String(training.liftForce.avg(), 2) + ",\"min\":" + String(training.liftForce.minV, 2) + ",\"max\":" + String(training.liftForce.maxV, 2) + "},";
-  j += "\"pushTime\":{\"avg\":" + String(training.pushTime.avg(), 0) + ",\"min\":" + String(training.pushTime.minV, 0) + ",\"max\":" + String(training.pushTime.maxV, 0) + "},";
-  j += "\"swingTime\":{\"avg\":" + String(training.swingTime.avg(), 0) + ",\"min\":" + String(training.swingTime.minV, 0) + ",\"max\":" + String(training.swingTime.maxV, 0) + "},";
+  j += "\"groundTime\":{\"avg\":" + String(training.groundTime.avg(), 0) + ",\"min\":" + String(training.groundTime.minV, 0) + ",\"max\":" + String(training.groundTime.maxV, 0) + "},";
+  j += "\"cycleTime\":{\"avg\":" + String(training.cycleTime.avg(), 0) + ",\"min\":" + String(training.cycleTime.minV, 0) + ",\"max\":" + String(training.cycleTime.maxV, 0) + "},";
   j += "\"frequency\":{\"avg\":" + String(training.frequency.avg(), 1) + ",\"min\":" + String(training.frequency.minV, 1) + ",\"max\":" + String(training.frequency.maxV, 1) + "},";
   j += "\"avgAccHoriz\":{\"avg\":" + String(training.avgAccHorizStat.avg(), 2) + ",\"min\":" + String(training.avgAccHorizStat.minV, 2) + ",\"max\":" + String(training.avgAccHorizStat.maxV, 2) + "},";
   j += "\"duration\":" + String(training.totalTimeS) + ",";
@@ -196,7 +196,7 @@ String buildResultsJSON() {
   }
   j += "\"errors\":" + String(training.errors) + ",";
   
-  float grade = gradeTrain(training.strikeAngleStat.avg(), training.liftAngleStat.avg(), training.pushTime.avg(), training.swingTime.avg());
+  float grade = gradeTrain(training.strikeAngleStat.avg(), training.liftAngleStat.avg(), training.groundTime.avg(), training.cycleTime.avg());
   j += "\"gradeTrain\":" + String(grade, 1) + ",";
   j += "\"techniquePurity\":" + String(purity, 1) + "}";
   return j;
@@ -271,8 +271,8 @@ void handleLoad() {
       training.strikeForce.add(sf);
       training.liftForce.add(atof(tokens[4]));
       training.avgAccHorizStat.add(atof(tokens[5]));
-      training.pushTime.add(atof(tokens[6]));
-      training.swingTime.add(atof(tokens[7]));
+      training.groundTime.add(atof(tokens[6]));
+      training.cycleTime.add(atof(tokens[7]));
       training.frequency.add(atof(tokens[8]));
 
       char *timeStr = tokens[9];
@@ -394,14 +394,14 @@ String buildResultsHTML() {
     row("Кут відриву", "°", training.liftAngleStat, 1);
     row("Сила удару", "кг.с", training.strikeForce, 2);
     row("Сила відриву", "кг.с", training.liftForce, 2);
-    row("Фаза поштовху", "мс", training.pushTime, 0);
-    row("Фаза переносу", "мс", training.swingTime, 0);
+    row("Час на землі", "мс", training.groundTime, 0);
+    row("Час циклу", "мс", training.cycleTime, 0);
     row("Частота", "уд/хв", training.frequency, 1);
     row("Сер. прискорення", "g", training.avgAccHorizStat, 2);
 
-    float workCycle = (training.pushTime.avg() + training.swingTime.avg() > 0) ? (training.pushTime.avg() / (training.pushTime.avg() + training.swingTime.avg())) * 100.0f : 0;
+    float workCycle = (training.cycleTime.avg() > 0) ? (training.groundTime.avg() / training.cycleTime.avg()) * 100.0f : 0;
     float purity = (training.strikeAngleStat.cnt > 0) ? 100.0f - (((float)training.errors / (float)training.strikeAngleStat.cnt) * 100.0f) : 100.0f;
-    float grade = gradeTrain(sa, la, training.pushTime.avg(), training.swingTime.avg());
+    float grade = gradeTrain(sa, la, training.groundTime.avg(), training.cycleTime.avg());
 
     h += "<div class='row'><div><div class='label'>Робочий цикл</div><div class='val'>" + String(workCycle, 1) + " %</div></div></div>";
     h += "<div class='row'><div><div class='label'>Чистота техніки (помилки)</div><div class='val'>" + String(purity, 2) + " % ("+String(training.errors)+")</div></div></div>";
