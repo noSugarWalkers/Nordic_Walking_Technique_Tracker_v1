@@ -97,6 +97,7 @@ TrainingData training;
 
 // Preferences / Config (Moved here for visibility)
 bool sdRecordEnable = true;
+bool rawRecordEnable = false;
 uint8_t poleLength = 115;
 uint16_t poleWeightGrams = 278;
 uint8_t userHeight = 175;
@@ -178,6 +179,7 @@ void setup() {
 
   // I2C
   Wire.begin(PIN_SDA, PIN_SCL);
+  Wire.setClock(400000);  // Fast Mode I2C — 4x throughput for BHI260AP FIFO
 
   setupBHI();
   setupPPM();
@@ -198,15 +200,21 @@ void setup() {
 // Main Loop
 // ============================================================
 void loop() {
+  static unsigned long lastHwCheckMs = 0;
+  unsigned long now = millis();
 
-  checkHW();
+  // Hardware check (PMIC/battery) — once per second to free I2C bus
+  if (now - lastHwCheckMs > 1000) {
+    checkHW();
+    lastHwCheckMs = now;
+  }
 
   if (imuReady) {
     bhi.update();
 
     // Force Calibration handling
     if (isCalibratingForce) {
-      if (millis() - calForceStartMs < 3000) {
+      if (now - calForceStartMs < 3000) {
         if (calForceIndex < 300) {
           calForceBuffer[calForceIndex++] = getLinAccMagSq();
         }
@@ -218,8 +226,11 @@ void loop() {
 
   checkButtons();
 
-  if (dnsStarted)
-    dnsServer.processNextRequest();
-  if (wifiConnected)
-    server.handleClient();
+  // WiFi/DNS polling — skip entirely during active training
+  if (appState != STATE_TRAINING_ACTIVE) {
+    if (dnsStarted)
+      dnsServer.processNextRequest();
+  }
+
+  if (wifiConnected) server.handleClient();
 }

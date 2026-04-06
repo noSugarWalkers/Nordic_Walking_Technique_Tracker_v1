@@ -14,12 +14,11 @@ extern uint16_t poleWeightGrams;
 extern AppState appState;
 extern bool autoTrainingEnable;
 
-
 float q_w = 1, q_x = 0, q_y = 0, q_z = 0; // Rotation vector quaternion
 float la_x = 0, la_y = 0, la_z = 0;       // Linear acceleration (g)
-float peakForceAccumulator = 0;          // Max force since last diag check
+float peakForceAccumulator = 0;           // Max force since last diag check
 
-void setupBHI(){
+void setupBHI() {
   // BHI Enable
   pinMode(PIN_BHI_EN, OUTPUT);
   digitalWrite(PIN_BHI_EN, HIGH);
@@ -32,11 +31,12 @@ void setupBHI(){
   if (!bhi.begin(Wire, BHI260AP_SLAVE_ADDRESS_L, PIN_SDA, PIN_SCL)) {
     Serial.println("IMU ERROR!");
   } else {
-    bhi.configure(BHY2_SENSOR_ID_RV, sensorFreq, 0);
+    // Only GameRV (no magnetometer needed) + Linear Acceleration
+    // RV removed — was duplicating quaternion data, wasting 33% of I2C
+    // bandwidth
     bhi.configure(BHY2_SENSOR_ID_GAMERV, sensorFreq, 0);
     bhi.configure(BHY2_SENSOR_ID_LACC, sensorFreq, 0);
 
-    bhi.onResultEvent(BHY2_SENSOR_ID_RV, onRotationVector);
     bhi.onResultEvent(BHY2_SENSOR_ID_GAMERV, onRotationVector);
     bhi.onResultEvent(BHY2_SENSOR_ID_LACC, onLinearAcc);
     imuReady = true;
@@ -72,10 +72,11 @@ float getPitch() { return getEulerPitch() - cal_pitch_offset; }
 
 float getRoll() { return getEulerRoll(); }
 
-float getLinAccMagSq() { 
+float getLinAccMagSq() {
   float magSq = (la_x * la_x + la_y * la_y + la_z * la_z);
-  if (magSq > peakForceAccumulator) peakForceAccumulator = magSq;
-  return magSq; 
+  if (magSq > peakForceAccumulator)
+    peakForceAccumulator = magSq;
+  return magSq;
 }
 
 float getAndResetPeakForce() {
@@ -96,15 +97,22 @@ float getHorizontalAcc() {
   float qz2 = q_z * q_z;
 
   // Use quaternion rotation formula: v_world = q * v_local * q_conj
-  // We only need X and Y components of the world-frame vector
+  // x_world
   float xw = la_x * (qw2 + qx2 - qy2 - qz2) +
              2.0f * la_y * (q_x * q_y - q_w * q_z) +
              2.0f * la_z * (q_x * q_z + q_w * q_y);
+  // y_world
   float yw = 2.0f * la_x * (q_x * q_y + q_w * q_z) +
              la_y * (qw2 - qx2 + qy2 - qz2) +
              2.0f * la_z * (q_y * q_z - q_w * q_x);
+  // z_world (vertical)
+  float zw = la_x * (2.0f * q_x * q_z - 2.0f * q_w * q_y) +
+             la_y * (2.0f * q_y * q_z + 2.0f * q_w * q_x) +
+             la_z * (qw2 - qx2 - qy2 + qz2);
 
-  return sqrtf(xw * xw + yw * yw);
+  float hAcc = sqrtf(xw * xw + yw * yw);
+
+  return hAcc;
 }
 
 /**
@@ -113,7 +121,8 @@ float getHorizontalAcc() {
 float accToKgf(float acc_g) {
   // Use gFactor if needed, but here we expect raw g-units
   // forceMultiplier is a user-defined coefficient for sensitivity correction
-  return acc_g * 9.81f * (poleWeightGrams / 1000.0f) * 0.10197 * forceMultiplier;
+  return acc_g * 9.81f * (poleWeightGrams / 1000.0f) * 0.10197 *
+         forceMultiplier;
 }
 
 // ============================================================
@@ -145,8 +154,9 @@ void onLinearAcc(uint8_t sensor_id, const uint8_t *data, uint32_t size,
     la_x = raw_x / 4096.0f;
     la_y = raw_y / 4096.0f;
     la_z = raw_z / 4096.0f;
-    
+
     if (imuReady) {
+
       float accSq = getLinAccMagSq();
       float acc = accSq * gFactor;
       float pitch = getPitch();
@@ -158,7 +168,7 @@ void onLinearAcc(uint8_t sensor_id, const uint8_t *data, uint32_t size,
           scanAutoGesturesIMU(acc, pitch);
         }
         if (appState == STATE_TRAINING_ACTIVE) {
-          processTrainingIMU(acc, pitch);
+          processTrainingIMU(acc, pitch, millis());
         }
       }
     }

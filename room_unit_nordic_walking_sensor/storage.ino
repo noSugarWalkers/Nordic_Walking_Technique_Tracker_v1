@@ -11,6 +11,7 @@ extern String fname;
 extern SDLogger logger;
 extern SPIClass spiSD;
 extern bool sdRecordEnable;
+extern bool rawRecordEnable;
 
 /**
  * @brief Initialize SD card storage
@@ -70,6 +71,15 @@ bool SDLogger::begin() {
                  "GroundTime(ms),"
                  "CycleTime(ms),Freq(s/m),TimeLeft");
   }
+
+  if (rawRecordEnable) {
+    char rawNbuf[24];
+    snprintf(rawNbuf, sizeof(rawNbuf), "/%03u_RAW.csv", maxIndex + 1);
+    if (rawFile.open(rawNbuf, O_RDWR | O_CREAT | O_APPEND)) {
+      rawFile.println("Acc(g),Pitch(deg),HorizAcc(g),Time(ms)");
+    }
+  }
+
   c = 0;
   return true;
 }
@@ -93,7 +103,35 @@ void SDLogger::log(const char *line) {
 void SDLogger::close() {
   if (!sdAvailable)
     return;
+  flushRawBuffer();  // Flush remaining RAW data before closing
   if (file.isOpen())
     file.close();
+  if (rawFile.isOpen())
+    rawFile.close();
   delay(50);
+}
+
+void SDLogger::logRaw(float acc, float pitch, float horizAcc, unsigned long timeMs) {
+  if (!rawRecordEnable) return;
+  if (rawBufHead >= RAW_BUF_SIZE) {
+    flushRawBuffer();
+    if (rawBufHead >= RAW_BUF_SIZE) rawBufHead = 0; // Prevent out-of-bounds
+  }
+  rawBuf[rawBufHead] = {acc, pitch, horizAcc, timeMs};
+  rawBufHead++;
+}
+
+void SDLogger::flushRawBuffer() {
+  if (!rawFile.isOpen() || rawBufHead == 0) {
+    rawBufHead = 0;
+    return;
+  }
+  char rb[64];
+  for (uint8_t i = 0; i < rawBufHead; i++) {
+    snprintf(rb, sizeof(rb), "%.2f,%.2f,%.2f,%lu",
+             rawBuf[i].acc, rawBuf[i].pitch, rawBuf[i].horizAcc, rawBuf[i].timeMs);
+    rawFile.println(rb);
+  }
+  rawFile.flush();
+  rawBufHead = 0;
 }

@@ -14,6 +14,7 @@ extern float gFactor;
 extern bool sdAvailable;
 extern char buf[128];
 extern SDLogger logger;
+extern bool rawRecordEnable;
 
 extern float peakImpactAcc;
 extern float peakLiftAcc;
@@ -30,6 +31,12 @@ int autoStartHitsCount = 0;
 int autoStopHitsCount = 0;
 unsigned long autoGestureStartMs = 0;
 bool gestureStrikeActive = false;
+
+// Step Detection variables
+AccWindow stepAccWindow;
+float localMaxPitch = -1e9f;
+float localMinPitch = 1e9f;
+bool isTestingSession = false;
 
 /**
  * @brief Scans for automatic start/stop gestures
@@ -93,110 +100,68 @@ void processDiagnosticsIMU() {
 /**
  * @brief Main IMU processing loop for step detection during active training
  */
-void processTrainingIMU(float acc, float pitch) {
+void processTrainingIMU(float acc, float pitch, unsigned long now) {
   // Фільтр: ігноруємо всі дані та не детектуємо кроки, якщо палиця майже
   // вертикальна (>= 83 градусів)
   if (pitch >= 83.0f) {
     return;
   }
 
-  unsigned long now = millis();
+  float horizAcc = getHorizontalAcc();
+
+  if (rawRecordEnable && !isTestingSession) {
+    unsigned long timeFromStart = now - training.startMs;
+    logger.logRaw(acc, pitch, horizAcc, timeFromStart);
+  }
+
+  stepAccWindow.push(acc);
 
   switch (stepPhase) {
   case PHASE_IDLE:
-    if (acc >= forceThresholdSq && (now - t_impact > IMPACT_DEBOUNCE_MS)) {
+    if (acc >= forceThresholdSq) {
+      if (t_impact > 0 && t_release > 0) {
+        unsigned long groundTimeMs = t_release - t_impact;
+        unsigned long cycleTimeMs = now - t_impact;
+        commitStep((float)groundTimeMs, (float)cycleTimeMs);
+      }
       stepPhase = PHASE_IMPACT;
-      t_prev_impact = t_impact;
-      t_impact = now;
+      localMaxPitch = pitch;
       peakImpactAcc = acc;
-      strikeAngle = pitch;
+      t_impact = now;
+      accHorizSumStep = 0;
+      accHorizCountStep = 0;
+    } else if (t_release > 0) {
+      accHorizSumStep += horizAcc;
+      accHorizCountStep++;
     }
     break;
 
   case PHASE_IMPACT:
-    if (acc > peakImpactAcc) {
+    if (pitch > localMaxPitch) {
+      localMaxPitch = pitch;
       peakImpactAcc = acc;
-      strikeAngle = pitch; // angle at peak force
+      t_impact = now;
     }
 
-    if (acc < forceThresholdSq * IMPACT_FALL_RATIO) {
-      stepPhase = PHASE_PUSH;
-    }
-
-    // Handle timeout where the stick is held down forever
-    if (now - t_impact > MAX_PUSH_MS) {
-      commitStep(MAX_PUSH_MS, MAX_SWING_MS);
-      stepPhase = PHASE_IDLE;
-      t_release = 0;
+    if (acc < forceThresholdSq || pitch < localMaxPitch - PITCH_HYSTERESIS) {
+      stepPhase = PHASE_GROUND;
+      strikeAngle = localMaxPitch;
+      localMinPitch = pitch;
     }
     break;
 
-  case PHASE_PUSH: {
-    unsigned long groundTimeMs = now - t_impact;
+  case PHASE_GROUND:
+    if (pitch < localMinPitch) {
+      localMinPitch = pitch;
+    }
 
-    if (groundTimeMs > MAX_PUSH_MS) {
-      commitStep(MAX_PUSH_MS, MAX_SWING_MS);
+    if (pitch > localMinPitch + PITCH_HYSTERESIS) {
+      t_release = now;
+      liftAngle = localMinPitch;
+      peakLiftAcc = stepAccWindow.getMax();
       stepPhase = PHASE_IDLE;
-      t_release = 0;
-    } else if (acc > LIFT_ACC_THRESHOLD_SQ || getHorizontalAcc() > LIFT_HORIZ_THRESH) {
-      bool isStrongImpact =
-          (peakImpactAcc >= (IMPACT_MIN_PEAK_G * IMPACT_MIN_PEAK_G)) &&
-          (groundTimeMs >= MIN_IMPACT_MS);
-
-      if (groundTimeMs >= MIN_PUSH_MS || isStrongImpact) {
-        stepPhase = PHASE_RELEASE;
-        t_release = now;
-        
-        peakLiftAcc = acc;
-        liftAngle = pitch;
-        accHorizSumStep = 0;
-        accHorizCountStep = 0;
-      } else {
-        // Push was way too short, noise. Reset to IDLE.
-        stepPhase = PHASE_IDLE;
-        t_release = 0;
-      }
     }
-  } break;
-
-  case PHASE_RELEASE: {
-    unsigned long swingMs = now - t_release;
-
-    // Limit the search for the lift-off peak to the first 100ms
-    if (swingMs < 100) {
-      if (acc > peakLiftAcc) {
-        peakLiftAcc = acc;
-        liftAngle = pitch;
-      }
-    }
-
-    // Accumulate horizontal acceleration during swing
-    accHorizSumStep += getHorizontalAcc();
-    accHorizCountStep++;
-
-    if (swingMs > MAX_SWING_MS) {
-      // Timeout during swing
-      commitStep((float)(t_release - t_impact), (float)(MAX_SWING_MS + (t_release - t_impact)));
-      stepPhase = PHASE_IDLE;
-      t_release = 0;
-    }
-    // Next impact detected → complete step
-    else if (acc >= forceThresholdSq && (now - t_release > IMPACT_DEBOUNCE_MS)) {
-      unsigned long groundTime = t_release - t_impact;
-      unsigned long cycleTime = now - t_impact;
-      
-      if (cycleTime >= MIN_STEP_PERIOD_MS) {
-        commitStep((float)groundTime, (float)cycleTime);
-      }
-
-      // Start new impact immediately
-      stepPhase = PHASE_IMPACT;
-      t_prev_impact = t_impact;
-      t_impact = now;
-      peakImpactAcc = acc;
-      strikeAngle = pitch;
-    }
-  } break;
+    break;
   }
 }
 
@@ -204,6 +169,14 @@ void processTrainingIMU(float acc, float pitch) {
  * @brief Finalize a detected step and update statistics
  */
 void commitStep(float groundMs, float cycleMs) {
+  if (groundMs < MIN_GROUNDTIME_MS || cycleMs < MIN_CYCLETIME_MS) {
+    return;
+  }
+
+  if (groundMs > MAX_GROUNDTIME_MS)
+    groundMs = MAX_GROUNDTIME_MS;
+  if (cycleMs > MAX_CYCLETIME_MS)
+    cycleMs = MAX_CYCLETIME_MS;
 
   float strikeFN = accToKgf(sqrtf(peakImpactAcc));
   float liftFN = accToKgf(sqrtf(peakLiftAcc));
@@ -227,7 +200,7 @@ void commitStep(float groundMs, float cycleMs) {
   training.hasData = true;
 
   // log data to file
-  if (sdAvailable) {
+  if (sdAvailable && !isTestingSession) {
     uint32_t elapsed = (millis() - training.startMs) * 0.001;
     uint8_t m = elapsed * 0.0167;
     uint8_t s = elapsed % 60;
@@ -236,6 +209,54 @@ void commitStep(float groundMs, float cycleMs) {
             liftFN, avgAccHoriz, (int)groundMs, (int)cycleMs, freq, m, s);
     logger.log(buf);
   }
+}
+
+void testAlgorithmFromSD(String path) {
+  if (!sdAvailable)
+    return;
+  SdFile file;
+  if (!file.open(path.c_str(), O_READ)) {
+    Serial.println("Could not open RAW file");
+    return;
+  }
+
+  stepPhase = PHASE_IDLE;
+  t_impact = 0;
+  t_release = 0;
+  t_prev_impact = 0;
+  training.reset();
+  isTestingSession = true;
+
+  char line[128];
+  file.fgets(line, sizeof(line)); // first line 
+
+  while (file.fgets(line, sizeof(line)) > 0) {
+    char *tokens[4];
+    int tIdx = 0;
+    char *p = line;
+    tokens[tIdx++] = p;
+    while (*p && tIdx < 4) {
+      if (*p == ',' || *p == '\r' || *p == '\n') {
+        *p = '\0';
+        if (tIdx < 4)
+          tokens[tIdx++] = p + 1;
+      }
+      p++;
+    }
+
+    if (tIdx >= 4) {
+      float acc = atof(tokens[0]);
+      float pitch = atof(tokens[1]);
+      unsigned long t = atol(tokens[3]);
+      if (t == 0 && acc == 0)
+        continue;
+      processTrainingIMU(acc, pitch, t);
+    }
+  }
+  file.close();
+  isTestingSession = false;
+  training.hasData = true;
+  appState = STATE_TRAINING_RESULTS;
 }
 
 /**
@@ -304,8 +325,9 @@ float gradeTrain(float sa, float la, float groundTime, float cycleTime) {
 }
 
 void startTraining() {
+  // Disable WiFi during training for max IMU throughput + power saving
   playMelody(MELODY_MEASURE_START);
-  //logger.begin();
+  logger.begin(); // Create CSV + RAW files BEFORE any data arrives
   training.reset();
   stepPhase = PHASE_IDLE;
   appState = STATE_TRAINING_ACTIVE;

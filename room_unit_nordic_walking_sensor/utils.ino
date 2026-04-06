@@ -6,6 +6,7 @@
 // ============================================================
 extern Preferences prefs;
 extern bool sdRecordEnable;
+extern bool rawRecordEnable;
 extern uint8_t poleLength;
 extern uint16_t poleWeightGrams;
 extern uint8_t userHeight;
@@ -98,6 +99,7 @@ void loadPrefs() {
   forceThresholdSq = forceThreshold * forceThreshold;
   cal_pitch_offset = prefs.getFloat("cal_offset", 0.0f);
   sdRecordEnable = prefs.getBool("sd_record", true);
+  rawRecordEnable = prefs.getBool("raw_record", false);
   poleLength = prefs.getUChar("pole_len", 115);
   poleWeightGrams = prefs.getUShort("pole_weight", 278);
   userHeight = prefs.getUChar("user_height", 175);
@@ -114,6 +116,7 @@ void savePrefs() {
   prefs.putFloat("threshold", forceThreshold);
   prefs.putFloat("cal_offset", cal_pitch_offset);
   prefs.putBool("sd_record", sdRecordEnable);
+  prefs.putBool("raw_record", rawRecordEnable);
   prefs.putUChar("pole_len", poleLength);
   prefs.putUShort("pole_weight", poleWeightGrams);
   prefs.putUChar("user_height", userHeight);

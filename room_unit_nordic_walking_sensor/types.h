@@ -15,7 +15,7 @@ enum AppState {
   STATE_TRAINING_RESULTS
 };
 
-enum StepPhase { PHASE_IDLE, PHASE_IMPACT, PHASE_PUSH, PHASE_RELEASE };
+enum StepPhase { PHASE_IDLE, PHASE_IMPACT, PHASE_GROUND };
 
 enum WiFiMode { APP_WIFI_STA, APP_WIFI_STA_AP, APP_WIFI_AP, APP_WIFI_OFF };
 
@@ -87,6 +87,37 @@ struct TrainingData {
   }
 };
 
+struct AccWindow {
+  float buffer[30];
+  int index = 0;
+
+  void push(float val) {
+    buffer[index] = val;
+    index = (index + 1) % 30;
+  }
+
+  float getMax() const {
+    float mx = -1e9f;
+    for (int i = 0; i < 30; i++) {
+      if (buffer[i] > mx)
+        mx = buffer[i];
+    }
+    return mx;
+  }
+};
+
+// ============================================================
+// RAW Sample buffer
+// ============================================================
+#define RAW_BUF_SIZE 32 // Flush every 32 samples (~160ms at 200Hz)
+
+struct RawSample {
+  float acc;
+  float pitch;
+  float horizAcc;
+  unsigned long timeMs;
+};
+
 // ============================================================
 // Classes
 // ============================================================
@@ -96,10 +127,15 @@ public:
   bool begin();
   void log(const char *line);
   void close();
+  void logRaw(float acc, float pitch, float horizAcc, unsigned long timeMs);
+  void flushRawBuffer();
 
 private:
   SdFile file;
+  SdFile rawFile;
   int c;
+  RawSample rawBuf[RAW_BUF_SIZE];
+  uint8_t rawBufHead = 0;
 };
 
 #endif // TYPES_H
