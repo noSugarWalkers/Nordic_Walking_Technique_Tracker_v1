@@ -169,10 +169,12 @@ void processTrainingIMU(float acc, float pitch, unsigned long now) {
  * @brief Finalize a detected step and update statistics
  */
 void commitStep(float groundMs, float cycleMs) {
+  //фікс початку відриву. Трошки раніше настає ніж кут мінімальний.
+  groundMs = groundMs - 100;
+
   if (groundMs < MIN_GROUNDTIME_MS || cycleMs < MIN_CYCLETIME_MS) {
     return;
   }
-
   if (groundMs > MAX_GROUNDTIME_MS)
     groundMs = MAX_GROUNDTIME_MS;
   if (cycleMs > MAX_CYCLETIME_MS)
