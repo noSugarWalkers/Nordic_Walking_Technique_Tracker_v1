@@ -88,8 +88,8 @@ void SDLogger::log(const char *line) {
   if (file.isOpen()) {
     file.println(line);
     c++;
-    if (c > 200) {
-      // Flush every 200 steps to prevent data loss
+    if (c > 50) {
+      // Flush every 50 steps to prevent data loss. Every 100m
       file.flush();
       c = 0;
     }

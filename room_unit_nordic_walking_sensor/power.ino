@@ -12,7 +12,8 @@ extern int batteryVoltage;
 
 unsigned long lastBatUpdate = 0;
 int batteryPercent = 0;
-int bu = 0;
+unsigned long bu = 0;
+unsigned long timerSleep = 0;
 
 // ============================================================
 // PMIC (BQ25896) Helpers
@@ -59,45 +60,55 @@ void setupPPM() {
   gaugeEnable = true;
 
   // init
-  uint16_t newDesignCapacity = 120;
-  uint16_t newFullChargeCapacity = 120;
+  uint16_t newDesignCapacity = 400;
+  uint16_t newFullChargeCapacity = 400;
   gauge.setNewCapacity(newDesignCapacity, newFullChargeCapacity);
 
-  PPM.setSysPowerDownVoltage(3200);
+  PPM.setSysPowerDownVoltage(3190);
   PPM.setChargeTargetVoltage(4208);
-  PPM.setPrechargeCurr(128);
-  PPM.setChargerConstantCurr(256);
+  PPM.setPrechargeCurr(192);
+  PPM.setChargerConstantCurr(384);
   PPM.disableCharge();
+
+  //reset timer
+  timerSleep = millis();
 }
 
 void checkHW() {
+  unsigned long ctime = millis();
   // Enable charging
   if (ppmEnable) {
     if (PPM.getVbusVoltage() > 2800) {
       if (!PPM.isEnableCharge()) {
+        timerSleep = ctime;
         PPM.enableCharge();
       } else {
+        if(appState == STATE_TRAINING_ACTIVE) timerSleep = ctime;
         if (PPM.isEnableCharge())
           PPM.disableCharge();
       }
     }
   }
 
+  //Auto power off by timeout
+  if(ctime-timerSleep > TIMER_SLEEP) powerOff();
+
   // update every 60s
-  if (bu <= 0) {
+  if (ctime - bu > 60000) {
     // Power OFF
     batteryVoltage = getBatteryVoltage();
-    if (batteryVoltage < 3150)
+    if(batteryVoltage < 3200){
+      //Charge ON when emergency power off
+      if (!PPM.isEnableCharge()) PPM.enableCharge();
       powerOff();
+    }
 
     // WiFi reconect
     if (wifiConnected && WiFi.status() != WL_CONNECTED)
       WiFi.reconnect();
 
-    bu = 3000;
-  } else {
-    bu--;
-  }
+    bu = ctime;
+  } 
 }
 
 void checkButtons() {

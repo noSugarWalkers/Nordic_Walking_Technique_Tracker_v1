@@ -359,6 +359,9 @@ void handleDelete() {
 }
 
 String buildResultsHTML() {
+  //reset timer
+  timerSleep = millis();
+
   String h = F(
       "<!DOCTYPE html><html lang='uk'><head>"
       "<meta charset='UTF-8'><meta name='viewport' "
@@ -749,6 +752,7 @@ void handleDiag() {
   j += "\"pitch\":" + String(getPitch(), 1) + ",";
   j += "\"peakAcc\":" + String(peakG, 2) + ",";
   j += "\"peakForce\":" + String(accToKgf(peakG) * gFactor, 2) + ",";
+  j += "\"Timer\":" + String(TIMER_SLEEP - (millis() - timerSleep)) + ",";
 
   if (gaugeEnable && gauge.refresh()) {
     j += "\"batVoltage\":" + String(gauge.getVoltage()) + ",";
@@ -766,6 +770,9 @@ void handleDiag() {
 }
 
 String buildSettingsHTML() {
+  //reset timer
+  timerSleep = millis();
+
   String h = F(
       "<!DOCTYPE html><html lang='uk'><head>"
       "<meta charset='UTF-8'><meta name='viewport' "
@@ -900,6 +907,8 @@ String buildSettingsHTML() {
        "class='diag-val' id='dVbus'>—</span></div>";
   h += "<div class='diag-row'><span class='diag-label'>Зарядка</span><span "
        "class='diag-val' id='dChg'>—</span></div>";
+  h += "<div class='diag-row'><span class='diag-label'>Таймер</span><span "
+       "class='diag-val' id='dTimer'>—</span></div>";
   h += "</div>";
 
   h += F("<button class='btn btn-primary' onclick='doSave()'>Зберегти "
@@ -1007,6 +1016,7 @@ String buildSettingsHTML() {
       "    document.getElementById('dTemp').innerText = j.batTemp + ' °C';"
       "    document.getElementById('dVbus').innerText = j.vbus + ' mV';"
       "    document.getElementById('dChg').innerText = j.chgStatus;"
+      "    document.getElementById('dTimer').innerText = j.Timer;"
       "    "
       "    const p = j.pitch;"
       "    const ap = document.getElementById('advisePitch');"
