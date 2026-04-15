@@ -69,7 +69,7 @@ bool SDLogger::begin() {
     file.println("Step,StrikeAngle,LiftAngle,StrikeForce(kgf),LiftForce(kgf),"
                  "AccHoriz(g),"
                  "GroundTime(ms),"
-                 "CycleTime(ms),Freq(s/m),TimeLeft");
+                 "CycleTime(ms),Freq(s/m),VibeDuration,VibeFreq,TimeLeft");
   }
 
   if (rawRecordEnable) {

@@ -31,6 +31,12 @@ int autoStartHitsCount = 0;
 int autoStopHitsCount = 0;
 unsigned long autoGestureStartMs = 0;
 bool gestureStrikeActive = false;
+unsigned long t_vibe_start = 0;
+int vibe_peaks = 0;
+float vibe_duration = 0;
+bool vibe_active = false;
+float last_vibe_acc = 0;
+bool vibe_acc_increasing = false;
 
 // Step Detection variables
 AccWindow stepAccWindow;
@@ -147,6 +153,13 @@ void processTrainingIMU(float acc, float pitch, unsigned long now) {
       stepPhase = PHASE_GROUND;
       strikeAngle = localMaxPitch;
       localMinPitch = pitch;
+      // Start vibration tracking
+      t_vibe_start = now;
+      vibe_peaks = 0;
+      vibe_duration = 0;
+      vibe_active = true;
+      last_vibe_acc = acc;
+      vibe_acc_increasing = false;
     }
     break;
 
@@ -160,6 +173,23 @@ void processTrainingIMU(float acc, float pitch, unsigned long now) {
       liftAngle = localMinPitch;
       peakLiftAcc = stepAccWindow.getMax();
       stepPhase = PHASE_IDLE;
+    } else {
+      // Analyze vibrations in ground phase
+      if (vibe_active) {
+        if (acc > last_vibe_acc) {
+          vibe_acc_increasing = true;
+        } else if (acc < last_vibe_acc && vibe_acc_increasing) {
+          // Peak detected at last_vibe_acc
+          if (last_vibe_acc >= peakImpactAcc * 0.05f) {
+            vibe_peaks++;
+            vibe_duration = (float)(now - t_vibe_start);
+          } else {
+            vibe_active = false;
+          }
+          vibe_acc_increasing = false;
+        }
+        last_vibe_acc = acc;
+      }
     }
     break;
   }
@@ -199,6 +229,14 @@ void commitStep(float groundMs, float cycleMs) {
   float avgAccHoriz =
       (accHorizCountStep > 0) ? (accHorizSumStep / accHorizCountStep) : 0;
   training.avgAccHorizStat.add(avgAccHoriz);
+  training.impactDurationStat.add(vibe_duration);
+  float vFreq = (vibe_duration > 0 && vibe_peaks > 0)
+                    ? ((1000.0f * vibe_peaks) / vibe_duration )
+                    : 0;
+  //Debug
+  Serial.println(vibe_peaks);
+
+  training.vibrationFreqStat.add(vFreq);
   training.hasData = true;
 
   // log data to file
@@ -206,9 +244,10 @@ void commitStep(float groundMs, float cycleMs) {
     uint32_t elapsed = (millis() - training.startMs) * 0.001;
     uint8_t m = elapsed * 0.0167;
     uint8_t s = elapsed % 60;
-    sprintf(buf, "%u,%.1f,%.1f,%.2f,%.2f,%.2f,%d,%d,%.1f,%02d:%02d",
+    sprintf(buf, "%u,%.1f,%.1f,%.2f,%.2f,%.2f,%d,%d,%.1f,%.0f,%.1f,%02d:%02d",
             training.strikeAngleStat.cnt, strikeAngle, liftAngle, strikeFN,
-            liftFN, avgAccHoriz, (int)groundMs, (int)cycleMs, freq, m, s);
+            liftFN, avgAccHoriz, (int)groundMs, (int)cycleMs, freq,
+            vibe_duration, vFreq, m, s);
     logger.log(buf);
   }
 }
@@ -228,6 +267,9 @@ void testAlgorithmFromSD(String path) {
   t_prev_impact = 0;
   training.reset();
   isTestingSession = true;
+  vibe_peaks = 0;
+  vibe_duration = 0;
+  vibe_active = false;
 
   char line[128];
   file.fgets(line, sizeof(line)); // first line 
@@ -336,6 +378,9 @@ void startTraining() {
   autoStartHitsCount = 0;
   autoStopHitsCount = 0;
   t_release = 0;
+  vibe_peaks = 0;
+  vibe_duration = 0;
+  vibe_active = false;
 }
 
 void stopTraining() {

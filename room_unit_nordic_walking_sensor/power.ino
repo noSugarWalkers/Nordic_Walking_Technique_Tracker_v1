@@ -61,13 +61,13 @@ void setupPPM() {
 
   // init
   uint16_t newDesignCapacity = 400;
-  uint16_t newFullChargeCapacity = 400;
+  uint16_t newFullChargeCapacity = 450;
   gauge.setNewCapacity(newDesignCapacity, newFullChargeCapacity);
 
-  PPM.setSysPowerDownVoltage(3190);
-  PPM.setChargeTargetVoltage(4208);
-  PPM.setPrechargeCurr(192);
-  PPM.setChargerConstantCurr(384);
+  PPM.setSysPowerDownVoltage(3150);
+  PPM.setChargeTargetVoltage(4220);
+  PPM.setPrechargeCurr(64);
+  PPM.setChargerConstantCurr(256);
   PPM.disableCharge();
 
   //reset timer
@@ -83,21 +83,23 @@ void checkHW() {
         timerSleep = ctime;
         PPM.enableCharge();
       } else {
-        if(appState == STATE_TRAINING_ACTIVE) timerSleep = ctime;
+        //Auto power off by timeout
+        if(appState == STATE_TRAINING_ACTIVE){
+          timerSleep = ctime;
+        }else{
+          if(ctime-timerSleep > TIMER_SLEEP) powerOff();
+        }
         if (PPM.isEnableCharge())
           PPM.disableCharge();
       }
     }
   }
 
-  //Auto power off by timeout
-  if(ctime-timerSleep > TIMER_SLEEP) powerOff();
-
   // update every 60s
   if (ctime - bu > 60000) {
     // Power OFF
     batteryVoltage = getBatteryVoltage();
-    if(batteryVoltage < 3200){
+    if(batteryVoltage < 3210){
       //Charge ON when emergency power off
       if (!PPM.isEnableCharge()) PPM.enableCharge();
       powerOff();

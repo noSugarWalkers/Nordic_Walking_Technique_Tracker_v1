@@ -66,6 +66,8 @@ struct TrainingData {
   Stat cycleTime;       // ms
   Stat frequency;       // steps/min
   Stat avgAccHorizStat; // g-units (average horizontal acc during swing phase)
+  Stat impactDurationStat; // ms
+  Stat vibrationFreqStat;  // calculated as 60000 / duration / peaks
   unsigned long startMs = 0;
   uint32_t totalTimeS = 0;
   long errors = 0;
@@ -80,6 +82,8 @@ struct TrainingData {
     cycleTime.reset();
     frequency.reset();
     avgAccHorizStat.reset();
+    impactDurationStat.reset();
+    vibrationFreqStat.reset();
     errors = 0;
     hasData = false;
     totalTimeS = 0;

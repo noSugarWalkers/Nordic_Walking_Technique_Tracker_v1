@@ -205,6 +205,12 @@ String buildResultsJSON() {
   j += "\"avgAccHoriz\":{\"avg\":" + String(training.avgAccHorizStat.avg(), 2) +
        ",\"min\":" + String(training.avgAccHorizStat.minV, 2) +
        ",\"max\":" + String(training.avgAccHorizStat.maxV, 2) + "},";
+  j += "\"impactDuration\":{\"avg\":" + String(training.impactDurationStat.avg(), 0) +
+       ",\"min\":" + String(training.impactDurationStat.minV, 0) +
+       ",\"max\":" + String(training.impactDurationStat.maxV, 0) + "},";
+  j += "\"vibrationFreq\":{\"avg\":" + String(training.vibrationFreqStat.avg(), 1) +
+       ",\"min\":" + String(training.vibrationFreqStat.minV, 1) +
+       ",\"max\":" + String(training.vibrationFreqStat.maxV, 1) + "},";
   j += "\"duration\":" + String(training.totalTimeS) + ",";
   j += "\"battery\":{\"percent\":" + String(getBatteryPercent()) +
        ",\"voltage\":" + String(getBatteryVoltage() / 1000.0, 2) + "},";
@@ -281,13 +287,13 @@ void handleLoad() {
     }
 
     char *p = line;
-    char *tokens[10];
+    char *tokens[14];
     int tIdx = 0;
     tokens[tIdx++] = p;
-    while (*p && tIdx < 10) {
+    while (*p && tIdx < 14) {
       if (*p == ',' || *p == '\r' || *p == '\n') {
         *p = '\0';
-        if (tIdx < 10)
+        if (tIdx < 14)
           tokens[tIdx++] = p + 1;
       }
       p++;
@@ -309,11 +315,22 @@ void handleLoad() {
       training.cycleTime.add(atof(tokens[7]));
       training.frequency.add(atof(tokens[8]));
 
-      char *timeStr = tokens[9];
-      char *colon = strchr(timeStr, ':');
-      if (colon) {
-        *colon = '\0';
-        training.totalTimeS = atoi(timeStr) * 60 + atoi(colon + 1);
+      if (tIdx >= 12) {
+        training.impactDurationStat.add(atof(tokens[9]));
+        training.vibrationFreqStat.add(atof(tokens[10]));
+        char *timeStr = tokens[11];
+        char *colon = strchr(timeStr, ':');
+        if (colon) {
+          *colon = '\0';
+          training.totalTimeS = atoi(timeStr) * 60 + atoi(colon + 1);
+        }
+      } else {
+        char *timeStr = tokens[9];
+        char *colon = strchr(timeStr, ':');
+        if (colon) {
+          *colon = '\0';
+          training.totalTimeS = atoi(timeStr) * 60 + atoi(colon + 1);
+        }
       }
     }
   }
@@ -518,6 +535,8 @@ String buildResultsHTML() {
     row("Час циклу", "мс", training.cycleTime, 0);
     row("Частота", "уд/хв", training.frequency, 1);
     row("Сер. прискорення", "g", training.avgAccHorizStat, 2);
+    row("Тривалість віддачі", "мс", training.impactDurationStat, 0);
+    row("Частота вібрації палиці", "Hz", training.vibrationFreqStat, 1);
 
     float workCycle =
         (training.cycleTime.avg() > 0)
