@@ -220,6 +220,7 @@ void commitStep(float groundMs, float cycleMs) {
 
   training.strikeAngleStat.add(strikeAngle);
   training.liftAngleStat.add(liftAngle);
+  training.rangeAngleStat.add(strikeAngle-liftAngle);
   training.strikeForce.add(strikeFN);
   training.liftForce.add(liftFN);
   training.groundTime.add(groundMs);
@@ -233,9 +234,6 @@ void commitStep(float groundMs, float cycleMs) {
   float vFreq = (vibe_duration > 0 && vibe_peaks > 0)
                     ? ((1000.0f * vibe_peaks) / vibe_duration )
                     : 0;
-  //Debug
-  Serial.println(vibe_peaks);
-
   training.vibrationFreqStat.add(vFreq);
   training.hasData = true;
 

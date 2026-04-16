@@ -60,6 +60,7 @@ struct Stat {
 struct TrainingData {
   Stat strikeAngleStat;
   Stat liftAngleStat;
+  Stat rangeAngleStat;
   Stat strikeForce;     // Newtons/kgf
   Stat liftForce;       // Newtons/kgf
   Stat groundTime;      // ms

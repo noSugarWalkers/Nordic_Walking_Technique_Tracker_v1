@@ -187,6 +187,9 @@ String buildResultsJSON() {
   j += "\"liftAngle\":{\"avg\":" + String(training.liftAngleStat.avg(), 1) +
        ",\"min\":" + String(training.liftAngleStat.minV, 1) +
        ",\"max\":" + String(training.liftAngleStat.maxV, 1) + "},";
+  j += "\"RangeAngle\":{\"avg\":" + String(training.rangeAngleStat.avg(), 1) +
+       ",\"min\":" + String(training.rangeAngleStat.minV, 1) +
+       ",\"max\":" + String(training.rangeAngleStat.maxV, 1) + "},";
   j += "\"strikeForce\":{\"avg\":" + String(training.strikeForce.avg(), 2) +
        ",\"min\":" + String(training.strikeForce.minV, 2) +
        ",\"max\":" + String(training.strikeForce.maxV, 2) + "},";
@@ -308,6 +311,7 @@ void handleLoad() {
 
       training.strikeAngleStat.add(sa);
       training.liftAngleStat.add(la);
+      training.rangeAngleStat.add(sa-la);
       training.strikeForce.add(sf);
       training.liftForce.add(atof(tokens[4]));
       training.avgAccHorizStat.add(atof(tokens[5]));
@@ -508,7 +512,7 @@ String buildResultsHTML() {
          "' y='240' fill='#f43f5e' font-size='14' font-weight='bold' "
          "text-anchor='start'>" +
          String(la, 1) + "&deg;</text></svg>";
-
+    
     h += "<div class='card'><div class='row'><div><div "
          "class='label'>Кроків</div><div class='val'>" +
          String(training.strikeAngleStat.cnt) + "</div></div>";
@@ -529,14 +533,15 @@ String buildResultsHTML() {
 
     row("Кут удару", "°", training.strikeAngleStat, 1);
     row("Кут відриву", "°", training.liftAngleStat, 1);
-    row("Сила удару", "кг.с", training.strikeForce, 2);
-    row("Сила відриву", "кг.с", training.liftForce, 2);
+    row("Діапазон", "°", training.rangeAngleStat, 1);
+    row("Сила удару", "кгс", training.strikeForce, 2);
+    row("Сила відриву", "кгс", training.liftForce, 2);
     row("Час на землі", "мс", training.groundTime, 0);
     row("Час циклу", "мс", training.cycleTime, 0);
     row("Частота", "уд/хв", training.frequency, 1);
-    row("Сер. прискорення", "g", training.avgAccHorizStat, 2);
+    row("Прискорення тіла", "g", training.avgAccHorizStat, 2);
     row("Тривалість віддачі", "мс", training.impactDurationStat, 0);
-    row("Частота вібрації палиці", "Hz", training.vibrationFreqStat, 1);
+    row("Частота вібрації палиці", "Гц", training.vibrationFreqStat, 1);
 
     float workCycle =
         (training.cycleTime.avg() > 0)
