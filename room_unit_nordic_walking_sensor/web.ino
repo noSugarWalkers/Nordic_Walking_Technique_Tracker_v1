@@ -447,7 +447,7 @@ String buildResultsHTML() {
   if (currentFileName != "") {
     shortName = currentFileName.substring(currentFileName.lastIndexOf('/') + 1);
   }
-  h += "<div class='header-bar'><h1>🥾 "+ String(DEVICE_NAME) + " v."+ String(FW_VERSION) + (shortName != "" ? " (" + shortName + ")" : "") + "</h1>";
+  h += "<div class='header-bar'><h2>🥾 "+ String(DEVICE_NAME) + " v."+ String(FW_VERSION) + (shortName != "" ? " (" + shortName + ")" : "") + "</h2>";
   h += "<div style='display:flex;gap:8px;align-items:center'>";
   if (gaugeEnable) {
     h += "<button class='bat-info' "
@@ -579,8 +579,8 @@ String buildResultsHTML() {
          String(workCycle, 1) + " %</div></div></div>";
     h += "<div class='row' style='flex-direction:column; align-items:flex-start;'>";
     h += "<div style='display:flex; justify-content:space-between; width:100%'>";
-    h += "<div><div class='label'>Помилки</div><div class='val'>" +
-         String(totalErrs, 2) + " % (" + String(purity) + ")</div></div>";
+    h += "<div><div class='label'>Помилки техніки</div><div class='val'>" +
+         String(purity,2) + "% (" + String(totalErrs) + " шт)</div></div>";
     h += "</div>";
     h += "<div class='err-list'>";
     if (training.techniqueErrors.lowPositionError.count > 0) h += "<span class='err-item' onclick='showErr(\"lowPositionError\")'>Низька позиція: " + String(training.techniqueErrors.lowPositionError.count) + "</span>";
