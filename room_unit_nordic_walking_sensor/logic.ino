@@ -339,8 +339,8 @@ void validateStep(float sa, float la, float sf, long gms, long cms, TrainingErro
 
   //parallelOperationError - need rotate data
 
-  //pushError - very low lift angle(рука не відпускає палицю)
-  if(la<LOW_ANGLE) {
+  //pushError - very low lift angle(рука не відпускає палицю) або волочіння палиць, або не синхрон
+  if((la<CRITICAL_ANGLE)||(gms==MAX_GROUNDTIME_MS)||(cms==MAX_CYCLETIME_MS)) {
     error.pushError.add();
     return;
   }

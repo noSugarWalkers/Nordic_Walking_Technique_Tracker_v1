@@ -572,17 +572,15 @@ String buildResultsHTML() {
             : 0;
     int totalErrs = training.techniqueErrors.total();
     float purity = (training.strikeAngleStat.cnt > 0)
-                       ? 100.0f - (((float)totalErrs /
-                                    (float)training.strikeAngleStat.cnt) *
-                                   100.0f)
-                       : 100.0f;
+                       ? (((float)totalErrs * 100.0f)/(float)training.strikeAngleStat.cnt)
+                       : 0.0f;
     h += "<div class='row'><div><div class='label'>Робочий цикл</div><div "
          "class='val'>" +
          String(workCycle, 1) + " %</div></div></div>";
     h += "<div class='row' style='flex-direction:column; align-items:flex-start;'>";
     h += "<div style='display:flex; justify-content:space-between; width:100%'>";
-    h += "<div><div class='label'>Чистота техніки (помилки)</div><div class='val'>" +
-         String(purity, 2) + " % (" + String(totalErrs) + ")</div></div>";
+    h += "<div><div class='label'>Помилки</div><div class='val'>" +
+         String(totalErrs, 2) + " % (" + String(purity) + ")</div></div>";
     h += "</div>";
     h += "<div class='err-list'>";
     if (training.techniqueErrors.lowPositionError.count > 0) h += "<span class='err-item' onclick='showErr(\"lowPositionError\")'>Низька позиція: " + String(training.techniqueErrors.lowPositionError.count) + "</span>";
@@ -695,9 +693,9 @@ String buildResultsHTML() {
     h += F("lowPositionError: \"Опускання центру ваги або ходьба на напівзігнутих ногах, небезпечне перевантаження колінних суглобів. Або задовга палиця. Кут удару менший 36° \",");
     h += F("rotateHipError: \"\\\"Виляння\\\" стегнами, небезпечне перенапруження попереку. Або закоротка палиця. Не природній рух руки, кут удару > 75° \",");
     h += F("elbowError: \"Робота лише ліктьовим суглобом(рух від ліктя), плече залишається нерухомим. Небезпечне травмування м’язів-розгиначів передпліччя. Короткий час на землі і кут удару більший 75°\",");
-    h += F("motionRangeError: \"Рука закінчує рух перед стегном (не перетинає лінію стегна). Травмування спини. Короткий час на землі.\",");
+    h += F("motionRangeError: \"Рука закінчує рух перед стегном (не перетинає лінію стегна). Горбатість і травмування спини. Короткий час на землі.\",");
     h += F("parallelOperationError: \"Руки рухаються не паралельно, звужуются спереду і розходятся сзаду. Спотикання о палиці, занадто сильна ротація тіла, травмування спини.\",");
-    h += F("pushError: \"Відсутність активного поштовху палицею, біг з палицями. Не має жодного єфекту від скандинавської ходьби. Рука тримає рукоять під час відштовхування, і кут відштовхування менший 36° \"");
+    h += F("pushError: \"Відсутність активного поштовху палицею, рука тримає рукоять в момент поштовху, біг з палицями, волочіння палиці, не синхроний рух палицями. Не має жодного єфекту від скандинавської ходьби.\"");
     h += F("};");
     h += F("function showErr(k) { document.getElementById('errHintText').innerText = errHints[k]; document.getElementById('errModal').showModal(); }");
     h += F("function runTest(f) {");
@@ -716,7 +714,7 @@ String buildResultsHTML() {
     h += F("          }");
     h += F("        }");
     h += F("      }).catch(() => {});");
-    h += F("    }, 1500);");
+    h += F("    }, 2500);");
     h += F("  });");
     h += F("}");
     h += F("</script>");
