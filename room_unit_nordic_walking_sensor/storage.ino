@@ -61,6 +61,7 @@ bool SDLogger::begin() {
   char nbuf[16];
   snprintf(nbuf, sizeof(nbuf), "/%03u.csv", maxIndex + 1);
   fname = String(nbuf);
+  currentFileName = fname;
 
   if (!file.open(fname.c_str(), O_RDWR | O_CREAT | O_APPEND)) {
     sdAvailable = false;

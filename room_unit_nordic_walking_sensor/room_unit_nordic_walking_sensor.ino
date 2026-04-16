@@ -75,6 +75,9 @@ int batteryVoltage = 0;
 // Shared buffers/vars
 char buf[128];
 String fname = "";
+String currentFileName = "";
+int testProgress = -1; // -1: idle, 0-100: progress
+String testPath = "";
 String staIP = "";
 bool wifiConnected = false;
 bool dnsStarted = false;
@@ -139,6 +142,13 @@ void onRotationVector(uint8_t sensor_id, const uint8_t *data, uint32_t size,
                       uint64_t *timestamp, void *user_data);
 void onLinearAcc(uint8_t sensor_id, const uint8_t *data, uint32_t size,
                  uint64_t *timestamp, void *user_data);
+
+// Test Task for background processing
+void testAlgorithmFromSD(String path);
+void testTask(void *pvParameters) {
+  testAlgorithmFromSD(testPath);
+  vTaskDelete(NULL);
+}
 
 // Handlers (web.ino)
 void handleRoot();

@@ -199,7 +199,7 @@ void processTrainingIMU(float acc, float pitch, unsigned long now) {
  * @brief Finalize a detected step and update statistics
  */
 void commitStep(float groundMs, float cycleMs) {
-  //фікс початку відриву. Трошки раніше настає ніж кут мінімальний.
+  // фікс початку відриву. Трошки раніше настає ніж кут мінімальний.
   groundMs = groundMs - 100;
 
   if (groundMs < MIN_GROUNDTIME_MS || cycleMs < MIN_CYCLETIME_MS) {
@@ -214,13 +214,11 @@ void commitStep(float groundMs, float cycleMs) {
   float liftFN = accToKgf(sqrtf(peakLiftAcc));
   float freq = 60000.0f / cycleMs;
 
-  if (validateStep(strikeAngle, liftAngle, strikeFN)) {
-    training.errors++;
-  }
+  validateStep(strikeAngle, liftAngle, strikeFN, groundMs, cycleMs, training.techniqueErrors);
 
   training.strikeAngleStat.add(strikeAngle);
   training.liftAngleStat.add(liftAngle);
-  training.rangeAngleStat.add(strikeAngle-liftAngle);
+  training.rangeAngleStat.add(strikeAngle - liftAngle);
   training.strikeForce.add(strikeFN);
   training.liftForce.add(liftFN);
   training.groundTime.add(groundMs);
@@ -232,7 +230,7 @@ void commitStep(float groundMs, float cycleMs) {
   training.avgAccHorizStat.add(avgAccHoriz);
   training.impactDurationStat.add(vibe_duration);
   float vFreq = (vibe_duration > 0 && vibe_peaks > 0)
-                    ? ((1000.0f * vibe_peaks) / vibe_duration )
+                    ? ((1000.0f * vibe_peaks) / vibe_duration)
                     : 0;
   training.vibrationFreqStat.add(vFreq);
   training.hasData = true;
@@ -270,9 +268,16 @@ void testAlgorithmFromSD(String path) {
   vibe_active = false;
 
   char line[128];
-  file.fgets(line, sizeof(line)); // first line 
+  uint32_t fileSize = file.fileSize();
+  testProgress = 0;
+  int lineCount = 0;
+
+  file.fgets(line, sizeof(line)); // first line
 
   while (file.fgets(line, sizeof(line)) > 0) {
+    lineCount++;
+    if (lineCount % 20 == 0) vTaskDelay(1);
+    testProgress = (file.curPosition() * 100) / fileSize;
     char *tokens[4];
     int tIdx = 0;
     char *p = line;
@@ -298,72 +303,47 @@ void testAlgorithmFromSD(String path) {
   file.close();
   isTestingSession = false;
   training.hasData = true;
+  testProgress = 100;
   appState = STATE_TRAINING_RESULTS;
 }
 
 /**
  * @brief Validates if a step has technique errors
  */
-bool validateStep(float sa, float la, float sf) {
-  // 1) strikeAngle >= liftAngle
-  if (sa >= la)
-    return true;
-  // 2) strikeAngle < 35, or strikeAngle > 75.
-  if (sa < ERR_SA_MIN || sa > ERR_SA_MAX)
-    return true;
-  // 3) liftAngle > 75 градусів.
-  if (la > ERR_LA_MAX)
-    return true;
-  // 4) strikeFN < 1 (actually ERR_SF_MIN)
-  if (sf < ERR_SF_MIN)
-    return true;
+void validateStep(float sa, float la, float sf, long gms, long cms, TrainingErrors &error) {
+  long liftTime = cms-gms;
 
-  return false;
-}
-
-/**
- * @brief Calculates a technique score (0-100%)
- */
-float gradeTrain(float sa, float la, float groundTime, float cycleTime) {
-  // 1) Оцінка за кут уколу (макс 49)
-  const float sa_center = (ERR_SA_MAX + ERR_SA_MIN) / 2.0f; // Тепер 46.5°
-  float sa_diff = fabs(sa - sa_center);
-  const float sa_max_diff = (ERR_SA_MAX - ERR_SA_MIN) / 2.0f; // 9.5°
-  float grade1 = 49.0f * (1.0f - (sa_diff / sa_max_diff));
-  if (grade1 < 0)
-    grade1 = 0;
-
-  // 2) Оцінка за різницю sa–la (макс 17)
-  float diff = fabs(sa - la);
-  float grade2 = 0.0f;
-
-  if (diff >= 5 && diff <= 10) {
-    grade2 = 17.0f;
-  } else if (diff < 5) {
-    grade2 = 17.0f * (diff / 5.0f);
-  } else {
-    float over = diff - 10.0f;
-    if (over < 10.0f) {
-      grade2 = 17.0f * (1.0f - (over / 10.0f));
-    } else {
-      grade2 = 0.0f;
-    }
+  //lowPositionError - strike angle < 36
+  if(sa<=LOW_ANGLE){ 
+    error.lowPositionError.add();
+    return;
+  }
+  
+  //rotateHipError - strike angle > 75 
+  if((sa>MAX_ANGLE)&&(liftTime<gms)) {
+    error.rotateHipError.add();
+    return;
+  }
+  
+  //elbowError - short ground time and angle > MAX
+  if((liftTime>=gms)&&(sa>MAX_ANGLE)) {
+    error.elbowError.add();
+    return;
   }
 
-  // 3) Оцінка за робочий цикл (макс 34)
-  float cycle = (groundTime / cycleTime) * 100.0f;
-  float grade3 = 0.0f;
-
-  if (cycle >= 66.0f) {
-    grade3 = 34.0f;
-  } else if (cycle >= 50.0f) {
-    grade3 = 34.0f * ((cycle - 50.0f) / 16.0f);
-  } else {
-    grade3 = 0.0f;
+  //motionRangeError and normal strike angle
+  if((liftTime>=gms)&&(sa<MAX_ANGLE)) {
+    error.motionRangeError.add();
+    return;
   }
 
-  float total = (grade1 + grade2 + grade3);
-  return total;
+  //parallelOperationError - need rotate data
+
+  //pushError - very low lift angle(рука не відпускає палицю)
+  if(la<LOW_ANGLE) {
+    error.pushError.add();
+    return;
+  }
 }
 
 void startTraining() {

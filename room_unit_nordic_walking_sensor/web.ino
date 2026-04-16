@@ -42,6 +42,7 @@ extern bool autoTrainingEnable;
 extern float gFactor;
 extern float forceMultiplier;
 extern float accToKgf(float acc_g);
+void validateStep(float sa, float la, float sf, long gms, long cms, TrainingErrors& error);
 
 /**
  * @brief Initialize WiFi (Station or AP)
@@ -137,6 +138,9 @@ void setupServer() {
   server.on("/api/diag", HTTP_GET, handleDiag);
   server.on("/delete", HTTP_GET, handleDelete);
   server.on("/test", HTTP_GET, handleTest);
+  server.on("/api/test_status", HTTP_GET, []() {
+    server.send(200, "application/json", "{\"progress\":" + String(testProgress) + "}");
+  });
 
   server.on("/poweroff", HTTP_GET, []() {
     server.send(200, "text/html",
@@ -220,18 +224,23 @@ String buildResultsJSON() {
   j += "\"state\":" + String(appState) + ",";
   j += "\"steps\":" + String(training.strikeAngleStat.cnt) + ",";
 
+  int totalErrs = training.techniqueErrors.total();
   float purity = 100.0f;
   if (training.strikeAngleStat.cnt > 0) {
     purity = 100.0f -
-             (((float)training.errors / (float)training.strikeAngleStat.cnt) *
+             (((float)totalErrs / (float)training.strikeAngleStat.cnt) *
               100.0f);
   }
-  j += "\"errors\":" + String(training.errors) + ",";
-
-  float grade =
-      gradeTrain(training.strikeAngleStat.avg(), training.liftAngleStat.avg(),
-                 training.groundTime.avg(), training.cycleTime.avg());
-  j += "\"gradeTrain\":" + String(grade, 1) + ",";
+  j += "\"errors\":" + String(totalErrs) + ",";
+  j += "\"techniqueErrors\":{";
+  j += "\"lowPosition\":" + String(training.techniqueErrors.lowPositionError.count) + ",";
+  j += "\"rotateHip\":" + String(training.techniqueErrors.rotateHipError.count) + ",";
+  j += "\"elbow\":" + String(training.techniqueErrors.elbowError.count) + ",";
+  j += "\"motionRange\":" + String(training.techniqueErrors.motionRangeError.count) + ",";
+  j += "\"parallelOperation\":" + String(training.techniqueErrors.parallelOperationError.count) + ",";
+  j += "\"push\":" + String(training.techniqueErrors.pushError.count);
+  j += "},";
+  j += "\"testProgress\":" + String(testProgress) + ",";
   j += "\"techniquePurity\":" + String(purity, 1) + "}";
   return j;
 }
@@ -280,6 +289,7 @@ void handleLoad() {
   }
 
   training.reset();
+  currentFileName = path;
 
   char line[128];
   bool first = true;
@@ -306,8 +316,10 @@ void handleLoad() {
       float sa = atof(tokens[1]);
       float la = atof(tokens[2]);
       float sf = atof(tokens[3]);
-      if (validateStep(sa, la, sf))
-        training.errors++;
+      long gt = atof(tokens[6]);
+      long ct = atof(tokens[7]);
+
+      validateStep(sa, la, sf, gt, ct, training.techniqueErrors);
 
       training.strikeAngleStat.add(sa);
       training.liftAngleStat.add(la);
@@ -356,10 +368,12 @@ void handleTest() {
   if (!path.startsWith("/"))
     path = "/" + path;
 
-  testAlgorithmFromSD(path);
+  testPath = path;
+  currentFileName = path;
+  testProgress = 0;
+  xTaskCreate(testTask, "testTask", 8192, NULL, 1, NULL);
 
-  server.sendHeader("Location", "/", true);
-  server.send(302, "text/plain", "");
+  server.send(200, "application/json", "{\"ok\":true}");
 }
 
 void handleDelete() {
@@ -387,7 +401,7 @@ String buildResultsHTML() {
       "<!DOCTYPE html><html lang='uk'><head>"
       "<meta charset='UTF-8'><meta name='viewport' "
       "content='width=device-width,initial-scale=1'>"
-      "<title>Nordic Walker</title><style>"
+      "<title>NW Technique Tracker</title><style>"
       "*{margin:0;padding:0;box-sizing:border-box}"
       "body{font-family:-apple-system,system-ui,sans-serif;background:#0f172a;"
       "color:#f8fafc;padding:16px;line-height:1.5;min-height:100vh}"
@@ -422,9 +436,18 @@ String buildResultsHTML() {
       "rgba(255,255,255,0.05);transition:background 0.2s}"
       ".file-link:hover{background:rgba(30,41,59,0.8)}"
       "dialog::backdrop{background:rgba(0,0,0,0.8);backdrop-filter:blur(4px)}"
+      ".err-list{font-size:11px;color:#94a3b8;margin-top:4px;display:flex;flex-wrap:wrap;gap:8px}"
+      ".err-item{text-decoration:underline dotted;cursor:pointer;transition:color 0.2s}"
+      ".err-item:hover{color:#38bdf8}"
+      ".progress-container{width:100%;background:rgba(255,255,255,0.1);border-radius:10px;margin:20px 0;height:20px;overflow:hidden}"
+      ".progress-bar{width:0%;height:100%;background:linear-gradient(90deg,#38bdf8,#818cf8);transition:width 0.3s}"
       "</style></head><body>");
 
-  h += "<div class='header-bar'><h1>🎿 Nordic Walker</h1>";
+  String shortName = "";
+  if (currentFileName != "") {
+    shortName = currentFileName.substring(currentFileName.lastIndexOf('/') + 1);
+  }
+  h += "<div class='header-bar'><h1>🥾 "+ String(DEVICE_NAME) + " v."+ String(FW_VERSION) + (shortName != "" ? " (" + shortName + ")" : "") + "</h1>";
   h += "<div style='display:flex;gap:8px;align-items:center'>";
   if (gaugeEnable) {
     h += "<button class='bat-info' "
@@ -547,27 +570,30 @@ String buildResultsHTML() {
         (training.cycleTime.avg() > 0)
             ? (training.groundTime.avg() / training.cycleTime.avg()) * 100.0f
             : 0;
+    int totalErrs = training.techniqueErrors.total();
     float purity = (training.strikeAngleStat.cnt > 0)
-                       ? 100.0f - (((float)training.errors /
+                       ? 100.0f - (((float)totalErrs /
                                     (float)training.strikeAngleStat.cnt) *
                                    100.0f)
                        : 100.0f;
-    float grade =
-        gradeTrain(sa, la, training.groundTime.avg(), training.cycleTime.avg());
-
     h += "<div class='row'><div><div class='label'>Робочий цикл</div><div "
          "class='val'>" +
          String(workCycle, 1) + " %</div></div></div>";
-    h += "<div class='row'><div><div class='label'>Чистота техніки "
-         "(помилки)</div><div class='val'>" +
-         String(purity, 2) + " % (" + String(training.errors) +
-         ")</div></div></div>";
-    h += "<div class='row'><div><div class='label'>Оцінка техніки</div><div "
-         "class='val'>" +
-         String(grade, 1) + " %</div></div></div>";
-    h += "<div class='row'><div><div class='label'>Сумарна оцінка</div><div "
-         "class='val'>" +
-         String((grade * purity * 0.01f), 1) + " %</div></div></div></div>";
+    h += "<div class='row' style='flex-direction:column; align-items:flex-start;'>";
+    h += "<div style='display:flex; justify-content:space-between; width:100%'>";
+    h += "<div><div class='label'>Чистота техніки (помилки)</div><div class='val'>" +
+         String(purity, 2) + " % (" + String(totalErrs) + ")</div></div>";
+    h += "</div>";
+    h += "<div class='err-list'>";
+    if (training.techniqueErrors.lowPositionError.count > 0) h += "<span class='err-item' onclick='showErr(\"lowPositionError\")'>Низька позиція: " + String(training.techniqueErrors.lowPositionError.count) + "</span>";
+    if (training.techniqueErrors.rotateHipError.count > 0) h += "<span class='err-item' onclick='showErr(\"rotateHipError\")'>Стегна: " + String(training.techniqueErrors.rotateHipError.count) + "</span>";
+    if (training.techniqueErrors.elbowError.count > 0) h += "<span class='err-item' onclick='showErr(\"elbowError\")'>Лікоть: " + String(training.techniqueErrors.elbowError.count) + "</span>";
+    if (training.techniqueErrors.motionRangeError.count > 0) h += "<span class='err-item' onclick='showErr(\"motionRangeError\")'>Діапазон: " + String(training.techniqueErrors.motionRangeError.count) + "</span>";
+    if (training.techniqueErrors.parallelOperationError.count > 0) h += "<span class='err-item' onclick='showErr(\"parallelOperationError\")'>Паралельність: " + String(training.techniqueErrors.parallelOperationError.count) + "</span>";
+    if (training.techniqueErrors.pushError.count > 0) h += "<span class='err-item' onclick='showErr(\"pushError\")'>Поштовх: " + String(training.techniqueErrors.pushError.count) + "</span>";
+    h += "</div></div>";
+//END
+    h += "</div>";
   }
 
   if (sdAvailable && appState != STATE_TRAINING_ACTIVE) {
@@ -598,8 +624,8 @@ String buildResultsHTML() {
                 "12px;border-radius:8px;text-decoration:none;color:#fff;font-"
                 "size:11px;font-weight:bold;'>Load</a>";
           } else {
-             h += "<a href='/test?f=" + dName + 
-                  "' style='background:linear-gradient(135deg,#eab308,#ca8a04);"
+             h += "<a href='#' onclick='runTest(\"" + dName + "\");return false;' "
+                  "style='background:linear-gradient(135deg,#eab308,#ca8a04);"
                   "padding:6px 12px;border-radius:8px;text-decoration:none;"
                   "color:#fff;font-size:11px;font-weight:bold;'>Test</a>";
           }
@@ -654,6 +680,47 @@ String buildResultsHTML() {
          "style='margin-top:20px;width:100%;padding:12px;background:#38bdf8;"
          "color:#0f172a;border:none;border-radius:10px;font-weight:bold;cursor:"
          "pointer'>CLOSE</button></dialog>";
+    h += F("<dialog id='errModal' style='padding:24px;border-radius:16px;background:#1e293b;color:#f1f5f9;border:1px solid #334155;max-width:90%;margin:auto;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5)'>");
+    h += F("<h2 style='margin-bottom:12px;font-size:20px;color:#f43f5e'>Деталі помилки</h2>");
+    h += F("<div id='errHintText' style='font-size:15px;line-height:1.6'></div>");
+    h += F("<button onclick='document.getElementById(\"errModal\").close()' style='margin-top:20px;width:100%;padding:12px;background:#38bdf8;color:#0f172a;border:none;border-radius:10px;font-weight:bold;cursor:pointer'>ЗРОЗУМІЛО</button></dialog>");
+    
+    h += F("<dialog id='testModal' style='padding:24px;border-radius:16px;background:#1e293b;color:#f1f5f9;border:1px solid #334155;max-width:90%;margin:auto;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5)'>");
+    h += F("<h2 style='margin-bottom:12px;font-size:20px;color:#38bdf8'>Обробка RAW даних</h2>");
+    h += F("<div class='progress-container'><div id='testBar' class='progress-bar'></div></div>");
+    h += F("<div id='testStatus' style='text-align:center; font-size:14px; color:#94a3b8'>0%</div></dialog>");
+    
+    h += F("<script>");
+    h += F("const errHints = {");
+    h += F("lowPositionError: \"Опускання центру ваги або ходьба на напівзігнутих ногах, небезпечне перевантаження колінних суглобів. Або задовга палиця. Кут удару менший 36° \",");
+    h += F("rotateHipError: \"\\\"Виляння\\\" стегнами, небезпечне перенапруження попереку. Або закоротка палиця. Не природній рух руки, кут удару > 75° \",");
+    h += F("elbowError: \"Робота лише ліктьовим суглобом(рух від ліктя), плече залишається нерухомим. Небезпечне травмування м’язів-розгиначів передпліччя. Короткий час на землі і кут удару більший 75°\",");
+    h += F("motionRangeError: \"Рука закінчує рух перед стегном (не перетинає лінію стегна). Травмування спини. Короткий час на землі.\",");
+    h += F("parallelOperationError: \"Руки рухаються не паралельно, звужуются спереду і розходятся сзаду. Спотикання о палиці, занадто сильна ротація тіла, травмування спини.\",");
+    h += F("pushError: \"Відсутність активного поштовху палицею, біг з палицями. Не має жодного єфекту від скандинавської ходьби. Рука тримає рукоять під час відштовхування, і кут відштовхування менший 36° \"");
+    h += F("};");
+    h += F("function showErr(k) { document.getElementById('errHintText').innerText = errHints[k]; document.getElementById('errModal').showModal(); }");
+    h += F("function runTest(f) {");
+    h += F("  document.getElementById('testBar').style.width = '0%';");
+    h += F("  document.getElementById('testStatus').innerText = '0%';");
+    h += F("  document.getElementById('testModal').showModal();");
+    h += F("  fetch('/test?f=' + f).then(r=>r.json()).then(res=>{");
+    h += F("    let itv = setInterval(()=>{");
+    h += F("      fetch('/api/test_status').then(r=>r.json()).then(j=>{");
+    h += F("        if(j.progress >= 0) {");
+    h += F("          document.getElementById('testBar').style.width = j.progress + '%';");
+    h += F("          document.getElementById('testStatus').innerText = j.progress + '%';");
+    h += F("          if(j.progress >= 100) {");
+    h += F("            clearInterval(itv);");
+    h += F("            setTimeout(()=>location.reload(), 500);");
+    h += F("          }");
+    h += F("        }");
+    h += F("      }).catch(() => {});");
+    h += F("    }, 1500);");
+    h += F("  });");
+    h += F("}");
+    h += F("</script>");
+
   }
   h += "</body></html>";
   return h;
@@ -1047,7 +1114,7 @@ String buildSettingsHTML() {
       "    const ah = document.getElementById('adviseHint');"
       "    if(ap && ah) {"
       "      ap.innerHTML = p.toFixed(1) + '&deg;';"
-      "      if(p >= 39 && p <= 42) {"
+      "      if(p >= 37 && p <= 42) {"
       "        ap.style.color = '#10b981';"
       "        ah.innerText = 'Ідеально';"
       "        ah.style.color = '#94a3b8';"

@@ -57,6 +57,36 @@ struct Stat {
   float avg() const { return cnt ? sum / cnt : 0; }
 };
 
+struct TechniqueError {
+  int count = 0;
+  void add() { count++; }
+  void reset() { count = 0; }
+};
+
+struct TrainingErrors {
+  TechniqueError lowPositionError;
+  TechniqueError rotateHipError;
+  TechniqueError elbowError;
+  TechniqueError motionRangeError;
+  TechniqueError parallelOperationError;
+  TechniqueError pushError;
+
+  void reset() {
+    lowPositionError.reset();
+    rotateHipError.reset();
+    elbowError.reset();
+    motionRangeError.reset();
+    parallelOperationError.reset();
+    pushError.reset();
+  }
+
+  int total() const {
+    return lowPositionError.count + rotateHipError.count + elbowError.count +
+           motionRangeError.count + parallelOperationError.count +
+           pushError.count;
+  }
+};
+
 struct TrainingData {
   Stat strikeAngleStat;
   Stat liftAngleStat;
@@ -71,7 +101,7 @@ struct TrainingData {
   Stat vibrationFreqStat;  // calculated as 60000 / duration / peaks
   unsigned long startMs = 0;
   uint32_t totalTimeS = 0;
-  long errors = 0;
+  TrainingErrors techniqueErrors;
   bool hasData = false;
 
   void reset() {
@@ -85,7 +115,7 @@ struct TrainingData {
     avgAccHorizStat.reset();
     impactDurationStat.reset();
     vibrationFreqStat.reset();
-    errors = 0;
+    techniqueErrors.reset();
     hasData = false;
     totalTimeS = 0;
     startMs = millis();
@@ -142,5 +172,12 @@ private:
   RawSample rawBuf[RAW_BUF_SIZE];
   uint8_t rawBufHead = 0;
 };
+
+// ============================================================
+// Global State Declarations (for cross-file access)
+// ============================================================
+extern String currentFileName;
+extern int testProgress;
+extern String testPath;
 
 #endif // TYPES_H
