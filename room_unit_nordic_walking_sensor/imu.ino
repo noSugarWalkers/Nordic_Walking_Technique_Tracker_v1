@@ -168,7 +168,7 @@ void onLinearAcc(uint8_t sensor_id, const uint8_t *data, uint32_t size,
           scanAutoGesturesIMU(acc, pitch);
         }
         if (appState == STATE_TRAINING_ACTIVE) {
-          processTrainingIMU(acc, pitch, millis());
+          processTrainingIMU(acc, pitch, millis(), getHorizontalAcc());
         }
       }
     }

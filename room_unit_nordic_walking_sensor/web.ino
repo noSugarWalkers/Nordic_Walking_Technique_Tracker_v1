@@ -489,6 +489,7 @@ String buildResultsHTML() {
       ".err-item:hover{color:#38bdf8}"
       ".progress-container{width:100%;background:rgba(255,255,255,0.1);border-radius:10px;margin:20px 0;height:20px;overflow:hidden}"
       ".progress-bar{width:0%;height:100%;background:linear-gradient(90deg,#38bdf8,#818cf8);transition:width 0.3s}"
+      ".report-canvas{width:100%;max-width:300px;aspect-ratio:9/16;background:#000;border-radius:12px;display:block;margin:16px auto;border:2px dashed rgba(255,255,255,0.2)}"
       "</style></head><body>");
 
   String shortName = "";
@@ -525,6 +526,9 @@ String buildResultsHTML() {
     h += "<a href='/start' class='action-btn'>▶ Start Training</a>";
   }
   h += "</div>";
+  if (training.hasData && appState != STATE_TRAINING_ACTIVE) {
+    h += "<div style='margin-bottom:20px'><button onclick='document.getElementById(\"reportModal\").showModal()' class='action-btn' style='background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;width:100%;'>🏆 Створити звіт для Instagram</button></div>";
+  }
 
   if (!training.hasData) {
     h += "<div class='card'><div class='no-data'>Немає даних "
@@ -640,6 +644,24 @@ String buildResultsHTML() {
     if (training.techniqueErrors.parallelOperationError.count > 0) h += "<span class='err-item' onclick='showErr(\"parallelOperationError\")'>Паралельність: " + String(training.techniqueErrors.parallelOperationError.count) + "</span>";
     if (training.techniqueErrors.pushError.count > 0) h += "<span class='err-item' onclick='showErr(\"pushError\")'>Поштовх: " + String(training.techniqueErrors.pushError.count) + "</span>";
     h += "</div></div>";
+    
+    // Inject training data for the report generator
+    h += "<script>const tData = {";
+    h += "device: '" + String(DEVICE_NAME) + "',";
+    h += "version: '" + String(FW_VERSION) + "',";
+    h += "time: '" + String(training.totalTimeS / 60) + ":" + (training.totalTimeS % 60 < 10 ? "0" : "") + String(training.totalTimeS % 60) + "',";
+    h += "sa: '" + String(training.strikeAngleStat.avg(), 1) + "',";
+    h += "la: '" + String(training.liftAngleStat.avg(), 1) + "',";
+    h += "sf: '" + String(training.strikeForce.avg(), 2) + "',";
+    h += "lf: '" + String(training.liftForce.avg(), 2) + "',";
+    h += "gt: '" + String((int)training.groundTime.avg()) + "',";
+    h += "ct: '" + String((int)training.cycleTime.avg()) + "',";
+    h += "wc: '" + String(workCycle, 1) + "',";
+    h += "freq: '" + String(training.frequency.avg(), 1) + "',";
+    h += "rot: '" + String(training.rotationStat.avg(), 1) + "',";
+    h += "faults: '" + String(purity, 1) + "',";
+    h += "purity: '" + String(100.0f - purity, 1) + "'";
+    h += "};</script>";
 //END
     h += "</div>";
   }
@@ -782,7 +804,58 @@ String buildResultsHTML() {
     h += F("  }");
     h += F("}");
     h += F("</script>");
-
+    
+    // Report Modal
+    h += F("<dialog id='reportModal' style='padding:20px;border-radius:16px;background:#1e293b;color:#f1f5f9;border:1px solid #334155;width:95%;max-width:400px;margin:auto;'>");
+    h += F("<h2 style='margin-bottom:12px;font-size:18px;color:#38bdf8;text-align:center;'>Звіт для Instagram (9:16)</h2>");
+    h += F("<input type='file' id='photoInp' accept='image/*' style='width:100%;margin-bottom:12px;font-size:14px;'>");
+    h += F("<canvas id='reportCanvas' class='report-canvas'></canvas>");
+    h += F("<div style='display:flex;gap:10px;'>");
+    h += F("<button onclick='document.getElementById(\"reportModal\").close()' style='flex:1;padding:12px;background:#475569;color:#fff;border:none;border-radius:10px;font-weight:bold;cursor:pointer;'>СКАСУВАТИ</button>");
+    h += F("<button id='saveReportBtn' style='flex:1;padding:12px;background:#38bdf8;color:#0f172a;border:none;border-radius:10px;font-weight:bold;cursor:pointer;display:none;'>ЗБЕРЕГТИ</button>");
+    h += F("</div>");
+    h += F("<script>");
+    h += F("const phInp = document.getElementById('photoInp');");
+    h += F("const repCanv = document.getElementById('reportCanvas');");
+    h += F("const saveBtn = document.getElementById('saveReportBtn');");
+    h += F("phInp.onchange = e => {");
+    h += F("  const file = e.target.files[0]; if(!file) return;");
+    h += F("  const reader = new FileReader();");
+    h += F("  reader.onload = event => {");
+    h += F("    const img = new Image();");
+    h += F("    img.onload = () => {");
+    h += F("      const ctx = repCanv.getContext('2d');");
+    h += F("      repCanv.width = 1080; repCanv.height = 1920;");
+    h += F("      const aspect = img.width / img.height; const target = 1080/1920;");
+    h += F("      let dw, dh, dx, dy;");
+    h += F("      if(aspect > target) { dh = img.height; dw = img.height * target; dx = (img.width - dw)/2; dy = 0; }");
+    h += F("      else { dw = img.width; dh = img.width / target; dx = 0; dy = (img.height - dh)/2; }");
+    h += F("      ctx.drawImage(img, dx, dy, dw, dh, 0, 0, 1080, 1920);");
+    h += F("      ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.lineJoin = 'round'; ctx.fillStyle = '#fff';");
+    h += F("      const stats = [");
+    h += F("        { l: 'Time', v: tData.time.split(':').length === 2 ? tData.time.split(':')[0] + ' m ' + tData.time.split(':')[1] + ' s' : tData.time },");
+    h += F("        { l: 'Pole angle', v: tData.sa + '°/ ' + tData.la + '°' },");
+    h += F("        { l: 'Pole force', v: tData.sf + '/' + tData.lf + ' kgf' },");
+    h += F("        { l: 'Ground Time', v: tData.gt + ' ms' },");
+    h += F("        { l: 'Faults', v: tData.faults + '%' }");
+    h += F("      ];");
+    h += F("      let y = 400;");
+    h += F("      stats.forEach(s => {");
+    h += F("        ctx.font = '52px monospace'; ctx.textAlign = 'left'; ctx.strokeText(s.l, 70, y); ctx.fillText(s.l, 70, y); y += 75;");
+    h += F("        ctx.font = 'italic bold 62px sans-serif'; ctx.strokeText(s.v, 70, y); ctx.fillText(s.v, 70, y); y += 140;");
+    h += F("      });");
+    h += F("      ctx.font = 'bold 72px sans-serif'; ctx.textAlign = 'center'; const hdr = `${tData.device} v.${tData.version}`; ctx.strokeText(hdr, 540, 110); ctx.fillText(hdr, 540, 110);");
+    h += F("      saveBtn.style.display = 'block';");
+    h += F("    };");
+    h += F("    img.src = event.target.result;");
+    h += F("  };");
+    h += F("  reader.readAsDataURL(file);");
+    h += F("};");
+    h += F("saveBtn.onclick = () => {");
+    h += F("  const link = document.createElement('a'); link.download = 'nw_report.png'; link.href = repCanv.toDataURL('image/png'); link.click();");
+    h += F("};");
+    h += F("</script>");
+    h += F("</dialog>");
   }
   h += "</body></html>";
   return h;

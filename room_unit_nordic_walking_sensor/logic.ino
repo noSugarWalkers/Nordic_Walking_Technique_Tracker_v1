@@ -109,14 +109,14 @@ void processDiagnosticsIMU() {
 /**
  * @brief Main IMU processing loop for step detection during active training
  */
-void processTrainingIMU(float acc, float pitch, unsigned long now) {
+void processTrainingIMU(float acc, float pitch, unsigned long now, float horizAcc) {
   // Фільтр: ігноруємо всі дані та не детектуємо кроки, якщо палиця майже
   // вертикальна (>= 83 градусів)
   if (pitch >= 83.0f) {
     return;
   }
 
-  float horizAcc = getHorizontalAcc();
+  // horizAcc is now passed as an argument to support replaying from SD
 
   if (rawRecordEnable && !isTestingSession) {
     unsigned long timeFromStart = now - training.startMs;
@@ -285,6 +285,7 @@ void testAlgorithmFromSD(String path) {
   uint32_t fileSize = file.fileSize();
   testProgress = 0;
   int lineCount = 0;
+  unsigned long lastT = 0;
 
   file.fgets(line, sizeof(line)); // first line
 
@@ -310,7 +311,8 @@ void testAlgorithmFromSD(String path) {
     if (tIdx >= 4) {
       float acc = atof(tokens[0]);
       float pitch = atof(tokens[1]);
-      
+      float horizAcc = atof(tokens[2]);
+
       // Для старих файлів (4 параметри) встановлюємо q_w = 1.0 (identity),
       // інакше всі розрахунки прискорення будуть нульовими.
       if (tIdx >= 5) {
@@ -321,14 +323,15 @@ void testAlgorithmFromSD(String path) {
         isOldRawFormat = true;
       }
 
-      unsigned long t = (tIdx >= 5) ? atol(tokens[4]) : atol(tokens[3]);
-      if (t == 0 && acc == 0)
+      lastT = (tIdx >= 5) ? atol(tokens[4]) : atol(tokens[3]);
+      if (lastT == 0 && acc == 0)
         continue;
       
-      processTrainingIMU(acc, pitch, t);
+      processTrainingIMU(acc, pitch, lastT, horizAcc);
     }
   }
   file.close();
+  training.totalTimeS = lastT / 1000;
   isTestingSession = false;
   training.hasData = true;
   testProgress = 100;
