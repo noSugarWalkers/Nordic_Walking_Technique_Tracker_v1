@@ -538,6 +538,7 @@ String buildResultsHTML() {
     float safeLa = constrain(la, 10.0f, 89.0f);
     int frontTouchX = 190 - (int)(120.0f / tan(safeSa * 3.14159f / 180.0f));
     int backTouchX = 110 - (int)(120.0f / tan(safeLa * 3.14159f / 180.0f));
+    if(backTouchX < 0 ) backTouchX = 0;
 
     h += "<svg viewBox='0 0 300 280' width='100%' "
          "style='background:rgba(0,0,0,0.2); border-radius:16px; "
@@ -551,24 +552,24 @@ String buildResultsHTML() {
          "stroke-linejoin='round'>";
     h += "<circle cx='150' cy='50' r='14' fill='#fff' /><path d='M150,64 "
          "C160,100 145,140 140,150' />";
-    h += "<path d='M140,150 L110,190 L75,250' stroke='#888' /><path d='M75,250 "
-         "L90,250' stroke='#888' stroke-width='4' />";
-    h += "<path d='M140,150 L170,200 L180,250' /><path d='M180,250 L195,250' "
-         "stroke-width='4' /></g>";
+
+    h += "<path d='M140,150 L170,200 L180,250' stroke='#888' /><path d='M180,250 L195,245' stroke='#888' stroke-width='4' />";
+    h += "<path d='M140,150 L115,190 L75,245' /><path d='M75,245 L90,250' stroke-width='4' /></g>";
+
     h += "<g fill='none' stroke-linecap='round' stroke-linejoin='round'>";
-    h += "<path d='M150,80 L120,110 L110,130' stroke='#64748b' "
+    h += "<path d='M150,80 L120,110 L110,140' stroke='#64748b' "
          "stroke-width='5' />";
-    h += "<path d='M150,80 L175,105 L190,130' stroke='#f8fafc' "
+    h += "<path d='M150,80 L165,105 L190,130' stroke='#f8fafc' "
          "stroke-width='5' /></g>";
     h += "<g clip-path='url(#gClip)'>";
     h += "<line x1='190' y1='130' x2='" + String(frontTouchX) +
          "' y2='250' stroke='#38bdf8' stroke-width='4' stroke-linecap='round' "
          "/>";
-    h += "<line x1='110' y1='130' x2='" + String(backTouchX) +
+    h += "<line x1='110' y1='140' x2='" + String(backTouchX) +
          "' y2='250' stroke='#f43f5e' stroke-width='4' stroke-linecap='round' "
          "/></g>";
     h += "<circle cx='190' cy='130' r='5' fill='#38bdf8' /><circle cx='110' "
-         "cy='130' r='5' fill='#f43f5e' />";
+         "cy='140' r='5' fill='#f43f5e' />";
     h += "<text x='230' y='115' fill='#38bdf8' font-size='16' "
          "font-weight='bold' text-anchor='middle'>" +
          String(sFn, 1) + "kgf</text>";
@@ -579,7 +580,7 @@ String buildResultsHTML() {
          "' y='240' fill='#38bdf8' font-size='14' font-weight='bold' "
          "text-anchor='start'>" +
          String(sa, 1) + "&deg;</text>";
-    h += "<text x='" + String(backTouchX + 10) +
+    h += "<text x='" + String(backTouchX + 25) +
          "' y='240' fill='#f43f5e' font-size='14' font-weight='bold' "
          "text-anchor='start'>" +
          String(la, 1) + "&deg;</text></svg>";
