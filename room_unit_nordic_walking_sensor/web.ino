@@ -137,6 +137,7 @@ void setupServer() {
   server.on("/api/cal_force_status", HTTP_GET, handleCalibrateForceStatus);
   server.on("/api/diag", HTTP_GET, handleDiag);
   server.on("/delete", HTTP_GET, handleDelete);
+  server.on("/rename", handleRename);
   server.on("/test", HTTP_GET, handleTest);
   server.on("/api/test_status", HTTP_GET, []() {
     server.send(200, "application/json", "{\"progress\":" + String(testProgress) + "}");
@@ -393,6 +394,33 @@ void handleDelete() {
   }
 }
 
+void handleRename() {
+  if (!server.hasArg("f") || !server.hasArg("n")) {
+    server.send(400, "text/plain", "Bad Request");
+    return;
+  }
+  String oldPath = server.arg("f");
+  if (!oldPath.startsWith("/"))
+    oldPath = "/" + oldPath;
+
+  String newName = server.arg("n");
+  if (!newName.toLowerCase().endsWith(".csv")) {
+    newName += ".csv";
+  }
+
+  String newPath = "/";
+  if (oldPath.lastIndexOf('/') > 0) {
+    newPath = oldPath.substring(0, oldPath.lastIndexOf('/') + 1);
+  }
+  newPath += newName;
+
+  if (sdAvailable && sd.rename(oldPath.c_str(), newPath.c_str())) {
+    server.send(200, "application/json", "{\"ok\":true}");
+  } else {
+    server.send(500, "text/plain", "Rename failed");
+  }
+}
+
 String buildResultsHTML() {
   //reset timer
   timerSleep = millis();
@@ -447,7 +475,7 @@ String buildResultsHTML() {
   if (currentFileName != "") {
     shortName = currentFileName.substring(currentFileName.lastIndexOf('/') + 1);
   }
-  h += "<div class='header-bar'><h2>🥾 "+ String(DEVICE_NAME) + " v."+ String(FW_VERSION) + (shortName != "" ? " (" + shortName + ")" : "") + "</h2>";
+  h += "<div class='header-bar'><h1>🥾 "+ String(DEVICE_NAME) + " v."+ String(FW_VERSION) + (shortName != "" ? " (" + shortName + ")" : "") + "</h1>";
   h += "<div style='display:flex;gap:8px;align-items:center'>";
   if (gaugeEnable) {
     h += "<button class='bat-info' "
@@ -631,6 +659,11 @@ String buildResultsHTML() {
                "' style='background:rgba(255,255,255,0.05);padding:6px "
                "12px;border-radius:8px;text-decoration:none;color:#f1f5f9;font-"
                "size:11px;border:1px solid rgba(255,255,255,0.1)'>Save</a>";
+          h += "<a href='#' onclick=\"renameFile('" + dName + "','" + sname +
+               "');return false;\" "
+               "style='background:linear-gradient(135deg,#6366f1,#4f46e5);"
+               "padding:6px 10px;border-radius:8px;text-decoration:none;"
+               "color:#fff;font-size:11px;'>Rename</a>";
           h += "<a href='#' onclick=\"if(confirm('Видалити " + sname +
                "?'))location.href='/delete?f=" + dName +
                "';return false;\" "
@@ -716,6 +749,15 @@ String buildResultsHTML() {
     h += F("      }).catch(() => {});");
     h += F("    }, 2500);");
     h += F("  });");
+    h += F("}");
+    h += F("function renameFile(p, oldName) {");
+    h += F("  let n = prompt('Введіть нову назву файлу:', oldName);");
+    h += F("  if (n && n !== oldName) {");
+    h += F("    fetch('/rename?f=' + p + '&n=' + encodeURIComponent(n))");
+    h += F("      .then(r => r.json())");
+    h += F("      .then(res => { if (res.ok) location.reload(); else alert('Rename failed'); })");
+    h += F("      .catch(() => alert('Network error'));");
+    h += F("  }");
     h += F("}");
     h += F("</script>");
 
