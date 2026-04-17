@@ -70,14 +70,14 @@ bool SDLogger::begin() {
     file.println("Step,StrikeAngle,LiftAngle,StrikeForce(kgf),LiftForce(kgf),"
                  "AccHoriz(g),"
                  "GroundTime(ms),"
-                 "CycleTime(ms),Freq(s/m),VibeDuration,VibeFreq,TimeLeft");
+                 "CycleTime(ms),Freq(s/m),VibeDuration,VibeFreq,StickRot(deg),TimeLeft");
   }
 
   if (rawRecordEnable) {
     char rawNbuf[24];
     snprintf(rawNbuf, sizeof(rawNbuf), "/%03u_RAW.csv", maxIndex + 1);
     if (rawFile.open(rawNbuf, O_RDWR | O_CREAT | O_APPEND)) {
-      rawFile.println("Acc(g),Pitch(deg),HorizAcc(g),Time(ms)");
+      rawFile.println("Acc(g),Pitch(deg),HorizAcc(g),qw,Time(ms)");
     }
   }
 
@@ -112,13 +112,13 @@ void SDLogger::close() {
   delay(50);
 }
 
-void SDLogger::logRaw(float acc, float pitch, float horizAcc, unsigned long timeMs) {
+void SDLogger::logRaw(float acc, float pitch, float horizAcc, float qw, unsigned long timeMs) {
   if (!rawRecordEnable) return;
   if (rawBufHead >= RAW_BUF_SIZE) {
     flushRawBuffer();
     if (rawBufHead >= RAW_BUF_SIZE) rawBufHead = 0; // Prevent out-of-bounds
   }
-  rawBuf[rawBufHead] = {acc, pitch, horizAcc, timeMs};
+  rawBuf[rawBufHead] = {acc, pitch, horizAcc, qw, timeMs};
   rawBufHead++;
 }
 
@@ -127,10 +127,10 @@ void SDLogger::flushRawBuffer() {
     rawBufHead = 0;
     return;
   }
-  char rb[64];
+  char rb[74];
   for (uint8_t i = 0; i < rawBufHead; i++) {
-    snprintf(rb, sizeof(rb), "%.2f,%.2f,%.2f,%lu",
-             rawBuf[i].acc, rawBuf[i].pitch, rawBuf[i].horizAcc, rawBuf[i].timeMs);
+    snprintf(rb, sizeof(rb), "%.2f,%.2f,%.2f,%.3f,%lu",
+             rawBuf[i].acc, rawBuf[i].pitch, rawBuf[i].horizAcc, rawBuf[i].qw, rawBuf[i].timeMs);
     rawFile.println(rb);
   }
   rawFile.flush();

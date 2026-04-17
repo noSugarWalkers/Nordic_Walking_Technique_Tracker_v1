@@ -320,11 +320,20 @@ void handleLoad() {
       long gt = atof(tokens[6]);
       long ct = atof(tokens[7]);
 
-      validateStep(sa, la, sf, gt, ct, training.techniqueErrors);
+      float rotDeg = 0;
+      float qw = 0;
+      if (tIdx >= 13) {
+        rotDeg = atof(tokens[11]);
+        // Reconstruct qw for validation threshold (approximate)
+        qw = sinf(rotDeg * M_PI / 360.0f);
+        training.rotationStat.add(rotDeg);
+      }
+
+      validateStep(sa, la, sf, gt, ct, qw, training.techniqueErrors);
 
       training.strikeAngleStat.add(sa);
       training.liftAngleStat.add(la);
-      training.rangeAngleStat.add(sa-la);
+      training.rangeAngleStat.add(sa - la);
       training.strikeForce.add(sf);
       training.liftForce.add(atof(tokens[4]));
       training.avgAccHorizStat.add(atof(tokens[5]));
@@ -332,7 +341,16 @@ void handleLoad() {
       training.cycleTime.add(atof(tokens[7]));
       training.frequency.add(atof(tokens[8]));
 
-      if (tIdx >= 12) {
+      if (tIdx >= 13) { // New format with Rotation
+        training.impactDurationStat.add(atof(tokens[9]));
+        training.vibrationFreqStat.add(atof(tokens[10]));
+        char *timeStr = tokens[12];
+        char *colon = strchr(timeStr, ':');
+        if (colon) {
+          *colon = '\0';
+          training.totalTimeS = atoi(timeStr) * 60 + atoi(colon + 1);
+        }
+      } else if (tIdx == 12) { // Old format with Vibration but no Rotation
         training.impactDurationStat.add(atof(tokens[9]));
         training.vibrationFreqStat.add(atof(tokens[10]));
         char *timeStr = tokens[11];
@@ -341,7 +359,7 @@ void handleLoad() {
           *colon = '\0';
           training.totalTimeS = atoi(timeStr) * 60 + atoi(colon + 1);
         }
-      } else {
+      } else { // Very old format
         char *timeStr = tokens[9];
         char *colon = strchr(timeStr, ':');
         if (colon) {
@@ -404,7 +422,9 @@ void handleRename() {
     oldPath = "/" + oldPath;
 
   String newName = server.arg("n");
-  if (!newName.toLowerCase().endsWith(".csv")) {
+  String checkName = newName;
+  checkName.toLowerCase();
+  if (!checkName.endsWith(".csv")) {
     newName += ".csv";
   }
 
@@ -591,6 +611,7 @@ String buildResultsHTML() {
     row("Час циклу", "мс", training.cycleTime, 0);
     row("Частота", "уд/хв", training.frequency, 1);
     row("Прискорення тіла", "g", training.avgAccHorizStat, 2);
+    row("Обертання тіла", "°", training.rotationStat, 1);
     row("Тривалість віддачі", "мс", training.impactDurationStat, 0);
     row("Частота вібрації палиці", "Гц", training.vibrationFreqStat, 1);
 

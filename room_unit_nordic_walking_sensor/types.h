@@ -99,6 +99,7 @@ struct TrainingData {
   Stat avgAccHorizStat; // g-units (average horizontal acc during swing phase)
   Stat impactDurationStat; // ms
   Stat vibrationFreqStat;  // calculated as 60000 / duration / peaks
+  Stat rotationStat;       // angle in degrees (from qw)
   unsigned long startMs = 0;
   uint32_t totalTimeS = 0;
   TrainingErrors techniqueErrors;
@@ -115,6 +116,7 @@ struct TrainingData {
     avgAccHorizStat.reset();
     impactDurationStat.reset();
     vibrationFreqStat.reset();
+    rotationStat.reset();
     techniqueErrors.reset();
     hasData = false;
     totalTimeS = 0;
@@ -150,6 +152,7 @@ struct RawSample {
   float acc;
   float pitch;
   float horizAcc;
+  float qw;
   unsigned long timeMs;
 };
 
@@ -162,7 +165,7 @@ public:
   bool begin();
   void log(const char *line);
   void close();
-  void logRaw(float acc, float pitch, float horizAcc, unsigned long timeMs);
+  void logRaw(float acc, float pitch, float horizAcc, float qw, unsigned long timeMs);
   void flushRawBuffer();
 
 private:
