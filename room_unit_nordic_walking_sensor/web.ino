@@ -145,10 +145,11 @@ void setupServer() {
     server.send(200, "application/json", "{\"progress\":" + String(testProgress) + "}");
   });
 
-  server.on("/logo/logo.png", HTTP_GET, []() {
+  server.on("/logo.png", HTTP_GET, []() {
     if (sdAvailable) {
       SdFile file;
-      if (file.open("/logo.png", O_READ)) {
+      if (file.open("/logo/logo.png", O_READ)) {
+        server.sendHeader("Cache-Control", "max-age=31536000");
         server.setContentLength(file.fileSize());
         server.send(200, "image/png", "");
         uint8_t bt[256];
@@ -880,7 +881,7 @@ String buildResultsHTML() {
   h += "</div>"; // Close container
 
   String ssid = (wifiMode == APP_WIFI_AP) ? String(WIFI_AP_SSID) : WiFi.SSID();
-  String currentIP = (wifiMode == APP_WIFI_AP) ? WiFi.softAPIP().toString() : staIP;
+  currentIP = (wifiMode == APP_WIFI_AP) ? WiFi.softAPIP().toString() : staIP;
     
   h += "<footer>";
   h += String(DEVICE_NAME) + " v." + String(FW_VERSION) + "<br>";
@@ -1016,6 +1017,7 @@ void handleDiag() {
   j += "\"peakAcc\":" + String(peakG, 2) + ",";
   j += "\"peakForce\":" + String(accToKgf(peakG) * gFactor, 2) + ",";
   j += "\"Timer\":" + String(TIMER_SLEEP - (millis() - timerSleep)) + ",";
+  j += "\"Ip\":\"" + String((wifiMode == APP_WIFI_AP) ? WiFi.softAPIP().toString() : staIP) + "\",";  
 
   if (gaugeEnable && gauge.refresh()) {
     j += "\"batVoltage\":" + String(gauge.getVoltage()) + ",";
@@ -1178,6 +1180,8 @@ String buildSettingsHTML() {
        "class='diag-val' id='dChg'>—</span></div>";
   h += "<div class='diag-row'><span class='diag-label'>Таймер</span><span "
        "class='diag-val' id='dTimer'>—</span></div>";
+  h += "<div class='diag-row'><span class='diag-label'>IP</span><span "
+       "class='diag-val' id='dIp'>—</span></div>";
   h += "</div>";
 
   h += F("<button class='btn btn-primary' onclick='doSave()'>Зберегти "
@@ -1287,6 +1291,7 @@ String buildSettingsHTML() {
       "    document.getElementById('dVbus').innerText = j.vbus + ' mV';"
       "    document.getElementById('dChg').innerText = j.chgStatus;"
       "    document.getElementById('dTimer').innerText = j.Timer;"
+      "    document.getElementById('dIp').innerText = j.Ip;"
       "    "
       "    const p = j.pitch;"
       "    const ap = document.getElementById('advisePitch');"

@@ -406,5 +406,9 @@ void stopTraining() {
   appState = STATE_TRAINING_RESULTS;
   autoStartHitsCount = 0;
   autoStopHitsCount = 0;
-  if (autoWifiEnable) setupWifi(APP_WIFI_AP);
+  if (autoWifiEnable){
+    setupWifi(APP_WIFI_AP);
+    delay(2000);
+    playMelody(MELODY_READY);
+  }
 }
