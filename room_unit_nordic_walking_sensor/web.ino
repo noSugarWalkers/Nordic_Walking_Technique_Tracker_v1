@@ -1016,7 +1016,7 @@ void handleDiag() {
   j += "\"pitch\":" + String(getPitch(), 1) + ",";
   j += "\"peakAcc\":" + String(peakG, 2) + ",";
   j += "\"peakForce\":" + String(accToKgf(peakG) * gFactor, 2) + ",";
-  j += "\"Timer\":" + String(TIMER_SLEEP - (millis() - timerSleep)) + ",";
+  j += "\"Timer\":" + String((autoPowerOffEnable) ? (TIMER_SLEEP - (millis() - timerSleep)): 99999) + ",";
   j += "\"Ip\":\"" + String((wifiMode == APP_WIFI_AP) ? WiFi.softAPIP().toString() : staIP) + "\",";  
 
   if (gaugeEnable && gauge.refresh()) {

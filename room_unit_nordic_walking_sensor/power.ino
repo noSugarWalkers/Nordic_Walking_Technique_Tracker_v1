@@ -57,49 +57,62 @@ void setupPPM() {
     }
   }
 
-  gaugeEnable = true;
+  
+  // Reset gauge to re-init from ROM defaults
+  gauge.reset();
+  delay(1000);
 
   // init
-  uint16_t newDesignCapacity = 400;
+  uint16_t newDesignCapacity = 450;
   uint16_t newFullChargeCapacity = 450;
   gauge.setNewCapacity(newDesignCapacity, newFullChargeCapacity);
 
-  PPM.setSysPowerDownVoltage(3150);
-  PPM.setChargeTargetVoltage(4220);
-  PPM.setPrechargeCurr(64);
-  PPM.setChargerConstantCurr(256);
-  PPM.disableCharge();
+  PPM.setSysPowerDownVoltage(3201);
+  PPM.setChargeTargetVoltage(4209);
+  PPM.setPrechargeCurr(32);
+  PPM.setChargerConstantCurr(192);
+  //PPM.disableCharge();
+  PPM.enableCharge();
 
   //reset timer
   timerSleep = millis();
+  gaugeEnable = true;
 }
 
 extern bool autoPowerOffEnable;
 
 void checkHW() {
   unsigned long ctime = millis();
+  uint16_t vbus = PPM.getVbusVoltage();
+  static bool usbState = false;
+
   // Enable charging
-  if (ppmEnable) {
-    if (PPM.getVbusVoltage() > 2800) {
-      if (!PPM.isEnableCharge()) {
-        timerSleep = ctime;
+    if (ppmEnable) {
+      if (!usbState && vbus > 4400) {
+        usbState = true;
         PPM.enableCharge();
-      } else {
-        if (PPM.isEnableCharge()) PPM.disableCharge();
+      }
+      if (usbState && vbus < 4200){
+        PPM.disableCharge();
+        usbState = false;
       }
     }
-  }
 
   // update every 60s
   if (ctime - bu > 60000) {
 
     //Auto power off by timeout
     if (autoPowerOffEnable) {
-      if(appState == STATE_TRAINING_ACTIVE){
+      
+      if(usbState){
         timerSleep = ctime;
       }else{
-        if(ctime-timerSleep > TIMER_SLEEP) powerOff();
-      }
+        if(appState == STATE_TRAINING_ACTIVE){
+          timerSleep = ctime;
+        }else{
+          if(ctime-timerSleep > TIMER_SLEEP) powerOff();
+        }
+      }  
     }
 
     // Power OFF
