@@ -145,6 +145,24 @@ void setupServer() {
     server.send(200, "application/json", "{\"progress\":" + String(testProgress) + "}");
   });
 
+  server.on("/logo/logo.png", HTTP_GET, []() {
+    if (sdAvailable) {
+      SdFile file;
+      if (file.open("/logo.png", O_READ)) {
+        server.setContentLength(file.fileSize());
+        server.send(200, "image/png", "");
+        uint8_t bt[256];
+        while (file.available()) {
+          size_t n = file.read(bt, sizeof(bt));
+          server.client().write(bt, n);
+        }
+        file.close();
+        return;
+      }
+    }
+    server.send(404, "text/plain", "Logo not found");
+  });
+
   server.on("/poweroff", HTTP_GET, []() {
     server.send(200, "text/html",
                 "<h2 "
@@ -454,14 +472,18 @@ String buildResultsHTML() {
       "<title>NW Technique Tracker</title><style>"
       "*{margin:0;padding:0;box-sizing:border-box}"
       "body{font-family:-apple-system,system-ui,sans-serif;background:#0f172a;"
-      "color:#f8fafc;padding:16px;line-height:1.5;min-height:100vh}"
+      "color:#f8fafc;padding:16px;line-height:1.5;min-height:100vh;display:flex;flex-direction:column}"
+      ".container{flex:1}"
       ".card{background:rgba(30,41,59,0.7);backdrop-filter:blur(12px);border-"
       "radius:16px;padding:20px;margin-bottom:20px;border:1px solid "
       "rgba(255,255,255,0.1);box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)}"
       "h1{text-align:center;font-size:22px;font-weight:700;letter-spacing:0."
       "5px;margin-bottom:8px;color:#38bdf8}"
       ".header-bar{display:flex;justify-content:space-between;align-items:"
-      "center;margin-bottom:20px}"
+      "center;margin-bottom:20px;gap:12px}"
+      ".logo-link{display:flex;align-items:center;text-decoration:none}"
+      ".logo-img{height:50px;width:auto;border-radius:10px;transition:transform 0.2s}"
+      ".logo-img:active{transform:scale(0.95)}"
       ".bat-info{font-size:13px;background:rgba(56,189,248,0.1);padding:8px "
       "12px;border-radius:20px;cursor:pointer;border:1px solid "
       "rgba(56,189,248,0.2);color:#38bdf8;font-weight:600}"
@@ -480,11 +502,15 @@ String buildResultsHTML() {
       "pointer;transition:transform 0.2s}"
       ".action-btn:active{transform:scale(0.98)}"
       ".btn-stop{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff}"
-      ".file-link{display:block;padding:12px;margin-bottom:10px;background:"
-      "rgba(30,41,59,0.5);border-radius:10px;text-decoration:none;color:#"
-      "38bdf8;font-family:monospace;border:1px solid "
-      "rgba(255,255,255,0.05);transition:background 0.2s}"
-      ".file-link:hover{background:rgba(30,41,59,0.8)}"
+      ".file-link{display:flex;flex-direction:column;gap:12px;padding:16px;margin-bottom:12px;background:"
+      "rgba(30,41,59,0.5);border-radius:12px;text-decoration:none;color:#"
+      "38bdf8;border:1px solid rgba(255,255,255,0.05);transition:background 0.2s}"
+      "@media(min-width:640px){.file-link{flex-direction:row;justify-content:space-between;align-items:center}}"
+      ".file-info{display:flex;align-items:center;gap:8px;font-family:monospace;font-size:14px}"
+      ".file-actions{display:flex;gap:6px;flex-wrap:wrap}"
+      ".file-btn{padding:6px 12px;border-radius:8px;text-decoration:none;color:#fff;font-size:11px;font-weight:bold;flex:1;text-align:center;min-width:60px}"
+      "@media(min-width:640px){.file-btn{flex:none}}"
+      "footer{margin-top:20px;padding:20px 0;text-align:center;color:#64748b;font-size:11px;border-top:1px solid rgba(255,255,255,0.05)}"
       "dialog::backdrop{background:rgba(0,0,0,0.8);backdrop-filter:blur(4px)}"
       ".err-list{font-size:11px;color:#94a3b8;margin-top:4px;display:flex;flex-wrap:wrap;gap:8px}"
       ".err-item{text-decoration:underline dotted;cursor:pointer;transition:color 0.2s}"
@@ -492,13 +518,18 @@ String buildResultsHTML() {
       ".progress-container{width:100%;background:rgba(255,255,255,0.1);border-radius:10px;margin:20px 0;height:20px;overflow:hidden}"
       ".progress-bar{width:0%;height:100%;background:linear-gradient(90deg,#38bdf8,#818cf8);transition:width 0.3s}"
       ".report-canvas{width:100%;max-width:300px;aspect-ratio:9/16;background:#000;border-radius:12px;display:block;margin:16px auto;border:2px dashed rgba(255,255,255,0.2)}"
-      "</style></head><body>");
+      "</style></head><body><div class='container'>");
 
   String shortName = "";
   if (currentFileName != "") {
     shortName = currentFileName.substring(currentFileName.lastIndexOf('/') + 1);
   }
-  h += "<div class='header-bar'><h1>🥾 "+ String(DEVICE_NAME) + " v."+ String(FW_VERSION) + (shortName != "" ? " (" + shortName + ")" : "") + "</h1>";
+  String currentIP = (wifiMode == APP_WIFI_AP) ? WiFi.softAPIP().toString() : staIP;
+  h += "<div class='header-bar'>";
+  h += "<a href='http://" + currentIP + "' target='_blank' class='logo-link'><img src='/logo.png' class='logo-img' alt='Logo'></a>";
+  if (shortName != "") {
+    h += "<h1 style='font-size:14px;margin:0;flex:1;text-align:left;color:#94a3b8'>" + shortName + "</h1>";
+  }
   h += "<div style='display:flex;gap:8px;align-items:center'>";
   if (gaugeEnable) {
     h += "<button class='bat-info' "
@@ -671,7 +702,7 @@ String buildResultsHTML() {
   if (sdAvailable && appState != STATE_TRAINING_ACTIVE) {
     h += "<h2 style='font-size:16px;margin:16px 0 "
          "8px;color:#94a3b8;font-weight:700'>SD Card Files</h2><div "
-         "class='card' style='max-height:300px;overflow-y:auto;'>";
+         "style='max-height:300px;overflow-y:auto;'>";
     SdFile root;
     if (root.open("/")) {
       int count = 0;
@@ -682,41 +713,28 @@ String buildResultsHTML() {
         String sname = String(name);
         if (sname.endsWith(".CSV") || sname.endsWith(".csv")) {
           String dName = sname.startsWith("/") ? sname : "/" + sname;
-          h += "<div class='file-link' "
-               "style='display:flex;justify-content:space-between;align-items:"
-               "center;'><span>📄 " +
-               sname + " <small style='color:#64748b'>(" +
-               String(f.fileSize()) + "B)</small></span><div style='display:flex;gap:6px;'>";
+          h += "<div class='file-link'>";
+          h += "<div class='file-info'><span>📄 " + sname + " <small style='color:#64748b'>(" + String(f.fileSize()) + "B)</small></span></div>";
+          h += "<div class='file-actions'>";
           if (!sname.endsWith("RAW.csv")) {
             h +=
                 "<a href='/load?f=" + dName +
-                "' "
-                "style='background:linear-gradient(135deg,#38bdf8,#1e40af);"
-                "padding:6px "
-                "12px;border-radius:8px;text-decoration:none;color:#fff;font-"
-                "size:11px;font-weight:bold;'>Load</a>";
+                "' class='file-btn' "
+                "style='background:linear-gradient(135deg,#38bdf8,#1e40af);'>Load</a>";
           } else {
-             h += "<a href='#' onclick='runTest(\"" + dName + "\");return false;' "
-                  "style='background:linear-gradient(135deg,#eab308,#ca8a04);"
-                  "padding:6px 12px;border-radius:8px;text-decoration:none;"
-                  "color:#fff;font-size:11px;font-weight:bold;'>Test</a>";
+             h += "<a href='#' onclick='runTest(\"" + dName + "\");return false;' class='file-btn' "
+                  "style='background:linear-gradient(135deg,#eab308,#ca8a04);'>Test</a>";
           }
           h += "<a href='/download?f=" + dName +
-               "' style='background:rgba(255,255,255,0.05);padding:6px "
-               "12px;border-radius:8px;text-decoration:none;color:#f1f5f9;font-"
-               "size:11px;border:1px solid rgba(255,255,255,0.1)'>Save</a>";
+               "' class='file-btn' style='background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#f1f5f9'>Save</a>";
           h += "<a href='#' onclick=\"renameFile('" + dName + "','" + sname +
-               "');return false;\" "
-               "style='background:linear-gradient(135deg,#6366f1,#4f46e5);"
-               "padding:6px 10px;border-radius:8px;text-decoration:none;"
-               "color:#fff;font-size:11px;'>Rename</a>";
+               "');return false;\" class='file-btn' "
+               "style='background:linear-gradient(135deg,#6366f1,#4f46e5);'>Rename</a>";
           h += "<a href='#' onclick=\"if(confirm('Видалити " + sname +
                "?'))location.href='/delete?f=" + dName +
-               "';return false;\" "
-               "style='background:linear-gradient(135deg,#f85032,#e73827);"
-               "padding:6px "
-               "10px;border-radius:8px;text-decoration:none;color:#fff;font-"
-               "size:11px;'>Delete</a></div></div>";
+               "';return false;\" class='file-btn' "
+               "style='background:linear-gradient(135deg,#f85032,#e73827);'>Delete</a>";
+          h += "</div></div>";
           count++;
         }
         f.close();
@@ -859,6 +877,16 @@ String buildResultsHTML() {
     h += F("</script>");
     h += F("</dialog>");
   }
+  h += "</div>"; // Close container
+
+  String ssid = (wifiMode == APP_WIFI_AP) ? String(WIFI_AP_SSID) : WiFi.SSID();
+  String currentIP = (wifiMode == APP_WIFI_AP) ? WiFi.softAPIP().toString() : staIP;
+    
+  h += "<footer>";
+  h += String(DEVICE_NAME) + " v." + String(FW_VERSION) + "<br>";
+  h += "IP: " + currentIP + " | Net: " + ssid;
+  h += "</footer>";
+
   h += "</body></html>";
   return h;
 }
