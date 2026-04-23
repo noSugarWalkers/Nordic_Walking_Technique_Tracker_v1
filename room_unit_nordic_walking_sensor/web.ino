@@ -534,9 +534,8 @@ String buildResultsHTML() {
   h += "<div style='display:flex;gap:8px;align-items:center'>";
   if (gaugeEnable) {
     h += "<button class='bat-info' "
-         "onclick='document.getElementById(\"batModal\").showModal()'>🔋 " +
-         String(getBatteryPercent()) + "% (" + String(getBatteryVoltage()) +
-         "mV)</button>";
+         "onclick='document.getElementById(\"batModal\").showModal()'>🌡" + String(gauge.getTemperature(), 1) + "С° 🔋 " +
+         String(getBatteryPercent()) + "%</button>";
   }
   h += "<a href='/settings' "
        "style='font-size:22px;text-decoration:none;background:rgba(56,189,248,"

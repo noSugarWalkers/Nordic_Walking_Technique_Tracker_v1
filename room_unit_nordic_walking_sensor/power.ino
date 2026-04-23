@@ -48,6 +48,7 @@ void setupPPM() {
     return;
   }
   delay(1000);
+
   if (gauge.refresh()) {
     BatteryStatus batteryStatus = gauge.getBatteryStatus();
     if (!batteryStatus.isBatteryPresent()) {
@@ -57,15 +58,15 @@ void setupPPM() {
     }
   }
 
-  
+  //FIRST INIT
   // Reset gauge to re-init from ROM defaults
-  gauge.reset();
+  /*gauge.reset();
   delay(1000);
 
   // init
   uint16_t newDesignCapacity = 450;
   uint16_t newFullChargeCapacity = 450;
-  gauge.setNewCapacity(newDesignCapacity, newFullChargeCapacity);
+  gauge.setNewCapacity(newDesignCapacity, newFullChargeCapacity);*/
 
   PPM.setSysPowerDownVoltage(3201);
   PPM.setChargeTargetVoltage(4209);
