@@ -14,6 +14,9 @@ extern uint16_t sensorFreq;
 extern bool buzzerEnable;
 extern float gFactor;
 extern float forceMultiplier;
+extern bool autoTrainingEnable;
+extern bool autoPowerOffEnable;
+extern bool autoWifiEnable;
 
 // ============================================================
 // Buzzer Functions
@@ -106,6 +109,8 @@ void loadPrefs() {
   sensorFreq = prefs.getUShort("sens_freq", 130);
   buzzerEnable = prefs.getBool("buzzer_en", false);
   autoTrainingEnable = prefs.getBool("auto_train", false);
+  autoPowerOffEnable = prefs.getBool("auto_off", true);
+  autoWifiEnable = prefs.getBool("auto_wifi", false);
   gFactor = prefs.getFloat("g_factor", 1.0f);
   forceMultiplier = prefs.getFloat("force_mult", 1.0f);
   prefs.end();
@@ -123,6 +128,8 @@ void savePrefs() {
   prefs.putUShort("sens_freq", sensorFreq);
   prefs.putBool("buzzer_en", buzzerEnable);
   prefs.putBool("auto_train", autoTrainingEnable);
+  prefs.putBool("auto_off", autoPowerOffEnable);
+  prefs.putBool("auto_wifi", autoWifiEnable);
   prefs.putFloat("g_factor", gFactor);
   prefs.putFloat("force_mult", forceMultiplier);
   prefs.end();

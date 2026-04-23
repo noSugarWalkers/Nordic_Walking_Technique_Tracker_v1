@@ -9,6 +9,7 @@ extern float forceThreshold;
 extern float forceThresholdSq;
 extern TrainingData training;
 extern bool autoTrainingEnable;
+extern bool autoWifiEnable;
 extern AppState appState;
 extern float gFactor;
 extern bool sdAvailable;
@@ -395,6 +396,7 @@ void startTraining() {
   vibe_duration = 0;
   vibe_active = false;
   qw_at_release = q_w;
+  if (autoWifiEnable) setupWifi(APP_WIFI_OFF);
 }
 
 void stopTraining() {
@@ -404,4 +406,5 @@ void stopTraining() {
   appState = STATE_TRAINING_RESULTS;
   autoStartHitsCount = 0;
   autoStopHitsCount = 0;
+  if (autoWifiEnable) setupWifi(APP_WIFI_AP);
 }

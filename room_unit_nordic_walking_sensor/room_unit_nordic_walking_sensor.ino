@@ -109,6 +109,8 @@ bool buzzerEnable = false;
 float gFactor = 1.0f;
 float forceMultiplier = 1.0f;
 bool autoTrainingEnable = false;
+bool autoPowerOffEnable = true;
+bool autoWifiEnable = false;
 float cal_pitch_offset = 0.0f;
 
 // ============================================================

@@ -39,6 +39,8 @@ extern uint8_t userHeight;
 extern uint16_t sensorFreq;
 extern bool buzzerEnable;
 extern bool autoTrainingEnable;
+extern bool autoPowerOffEnable;
+extern bool autoWifiEnable;
 extern float gFactor;
 extern float forceMultiplier;
 extern float accToKgf(float acc_g);
@@ -877,8 +879,9 @@ void handleSettingsApi() {
        ",\"userHeight\":" + String(userHeight) +
        ",\"sensorFreq\":" + String(sensorFreq) + ",";
   j += "\"buzzerEnable\":" + String(buzzerEnable ? "true" : "false") +
-       ",\"autoTrainingEnable\":" +
-       String(autoTrainingEnable ? "true" : "false") + ",";
+       ",\"autoTrainingEnable\":" + String(autoTrainingEnable ? "true" : "false") +
+       ",\"autoPowerOffEnable\":" + String(autoPowerOffEnable ? "true" : "false") +
+       ",\"autoWifiEnable\":" + String(autoWifiEnable ? "true" : "false") + ",";
   j += "\"forceMultiplier\":" + String(forceMultiplier, 3) + "}";
   server.send(200, "application/json", j);
 }
@@ -908,6 +911,12 @@ void handleSettingsPost() {
   if (server.hasArg("autoTrainingEnable"))
     autoTrainingEnable = (server.arg("autoTrainingEnable") == "true" ||
                           server.arg("autoTrainingEnable") == "1");
+  if (server.hasArg("autoPowerOffEnable"))
+    autoPowerOffEnable = (server.arg("autoPowerOffEnable") == "true" ||
+                          server.arg("autoPowerOffEnable") == "1");
+  if (server.hasArg("autoWifiEnable"))
+    autoWifiEnable = (server.arg("autoWifiEnable") == "true" ||
+                      server.arg("autoWifiEnable") == "1");
   if (server.hasArg("gFactor"))
     gFactor = server.arg("gFactor").toFloat();
   if (server.hasArg("forceMultiplier"))
@@ -1109,6 +1118,12 @@ String buildSettingsHTML() {
   h += "<div class='field'><span>Авто-тренування</span><input type='checkbox' "
        "id='autoTrainingEnable' " +
        String(autoTrainingEnable ? "checked" : "") + "></div>";
+  h += "<div class='field'><span>Автоматичне вимкнення</span><input type='checkbox' "
+       "id='autoPowerOffEnable' " +
+       String(autoPowerOffEnable ? "checked" : "") + "></div>";
+  h += "<div class='field'><span>Автоматичне WiFi</span><input type='checkbox' "
+       "id='autoWifiEnable' " +
+       String(autoWifiEnable ? "checked" : "") + "></div>";
   h += F("</div>");
 
   // --- Diagnostics ---
@@ -1187,8 +1202,9 @@ String buildSettingsHTML() {
       "    sdRecordEnable: document.getElementById('sdRecordEnable').checked,"
       "    rawRecordEnable: document.getElementById('rawRecordEnable').checked,"
       "    buzzerEnable: document.getElementById('buzzerEnable').checked,"
-      "    autoTrainingEnable: "
-      "document.getElementById('autoTrainingEnable').checked"
+      "    autoTrainingEnable: document.getElementById('autoTrainingEnable').checked,"
+      "    autoPowerOffEnable: document.getElementById('autoPowerOffEnable').checked,"
+      "    autoWifiEnable: document.getElementById('autoWifiEnable').checked"
       "  };"
       "  fetch('/api/settings', {method:'POST', body: new URLSearchParams(d)})"
       "    .then(r=>r.json()).then(res=>{ if(res.ok) location.href='/'; });"

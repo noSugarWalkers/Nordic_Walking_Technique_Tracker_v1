@@ -74,6 +74,8 @@ void setupPPM() {
   timerSleep = millis();
 }
 
+extern bool autoPowerOffEnable;
+
 void checkHW() {
   unsigned long ctime = millis();
   // Enable charging
@@ -83,20 +85,23 @@ void checkHW() {
         timerSleep = ctime;
         PPM.enableCharge();
       } else {
-        //Auto power off by timeout
-        if(appState == STATE_TRAINING_ACTIVE){
-          timerSleep = ctime;
-        }else{
-          if(ctime-timerSleep > TIMER_SLEEP) powerOff();
-        }
-        if (PPM.isEnableCharge())
-          PPM.disableCharge();
+        if (PPM.isEnableCharge()) PPM.disableCharge();
       }
     }
   }
 
   // update every 60s
   if (ctime - bu > 60000) {
+
+    //Auto power off by timeout
+    if (autoPowerOffEnable) {
+      if(appState == STATE_TRAINING_ACTIVE){
+        timerSleep = ctime;
+      }else{
+        if(ctime-timerSleep > TIMER_SLEEP) powerOff();
+      }
+    }
+
     // Power OFF
     batteryVoltage = getBatteryVoltage();
     if(batteryVoltage < 3210){
@@ -106,8 +111,7 @@ void checkHW() {
     }
 
     // WiFi reconect
-    if (wifiConnected && WiFi.status() != WL_CONNECTED)
-      WiFi.reconnect();
+    if (wifiConnected && WiFi.status() != WL_CONNECTED) WiFi.reconnect();
 
     bu = ctime;
   } 
